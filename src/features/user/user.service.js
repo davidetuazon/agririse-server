@@ -20,6 +20,7 @@ exports.signIn = async (params) => {
         return {
             email: user.email,
             id: user._id,
+            localityId: user.localityId,
         };
     } catch (e) {
         throw (e);

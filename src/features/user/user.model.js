@@ -24,10 +24,15 @@ const userSchema = new Schema(
             type: String,
             required: true,
         },
+        localityId: {
+            type: mongoose.Types.ObjectId,
+            ref: 'Locality',
+            required: true,
+        },
         lastLogin: {
             type: Date,
             default: null,
-        }
+        },
     }, { timestamps: true }
 );
 

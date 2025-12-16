@@ -15,6 +15,7 @@ exports.login = async (req, res, next) => {
         const payload = {
             email: user.email,
             _id: user._id,
+            localityId: user.localityId,
         }
 
         const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '7d' });

@@ -27,7 +27,9 @@ if (process.env.NODE_ENV != 'test') {
 const basepath = '/api';
 
 const userRoute = require(path.resolve('.') + '/src/features/user/user.routes');
+const iotRoute = require(path.resolve('.') + '/src/features/iot/iot.routes');
 
 app.use(basepath + '/v1', userRoute);
+app.use(basepath + '/v1', iotRoute);
 
 module.exports = app;

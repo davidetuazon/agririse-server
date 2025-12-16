@@ -3,6 +3,10 @@ const Schema = mongoose.Schema;
 
 const canalSchema = new Schema(
     {
+        localityId: {
+            type: mongoose.Types.ObjectId,
+            ref: 'Locality',
+        },
         mainLateralId: {
             type: String,
             required: true,
@@ -21,7 +25,7 @@ const canalSchema = new Schema(
             type: Number,
             default: 0.5,
         },
-        waterDemand: {
+        netWaterDemandM3: {
             type: Number,
             default: 0,
         },

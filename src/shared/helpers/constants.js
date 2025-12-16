@@ -1,4 +1,4 @@
-const USER_FIELD='-password -__v -socketId -idAttachment -idName'
+const USER_FIELD='-password -__v -socketId -idAttachment -idName -lastLogin -createdAt -updatedAt'
 
 const AGRIRISE_URL = 'http://localhost:8000'
 
