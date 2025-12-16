@@ -1,5 +1,5 @@
 const app = require('./app');
-require('./src/shared/services/iotCron');
+// require('./src/shared/services/iotCron');
 
 const PORT = process.env.PORT || 5000;
 
