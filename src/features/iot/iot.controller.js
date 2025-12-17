@@ -30,9 +30,15 @@ exports.getLatestData = async (req, res, next) => {
 
 exports.getHistoricalData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { sensorType, period, limit, cursor } = req.query;
+    const { sensorType, period, limit } = req.query;
+    let cursor = req.query.cursor;
 
-    const issues = validate({ sensorType, period, limit, cursor }, {
+    if (cursor) {
+        const decoded = Buffer.from(cursor, 'base64').toString('utf8');
+        cursor = JSON.parse(decoded);
+    }
+
+    const issues = validate({ sensorType, period }, {
         sensorType: {
             presence: true,
         },
@@ -54,7 +60,13 @@ exports.getHistoricalData = async (req, res, next) => {
 
 exports.getAnalyticalData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { sensorType, period } = req.query;
+    const { sensorType, period, limit } = req.query;
+    let cursor = req.query.cursor;
+
+    if (cursor) {
+        const decoded = Buffer.from(cursor, 'base64').toString('utf8');
+        cursor = JSON.parse(decoded);
+    }
 
     const issues = validate({ sensorType, period }, {
         sensorType: {
@@ -67,7 +79,7 @@ exports.getAnalyticalData = async (req, res, next) => {
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const data = await IoTService.getAnalytics(localityId, sensorType, period);
+        const data = await IoTService.getAnalytics(localityId, sensorType, period, limit, cursor);
 
         res.status(200).json({ data });
     } catch (e) {

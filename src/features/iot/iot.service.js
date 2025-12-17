@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
 const { periodToMilliseconds } = require('./iot.utils');
@@ -57,7 +58,7 @@ exports.getLatestReadings = async (localityId) => {
                 results[type] = {
                     value: latest.value,
                     unit: latest.unit,
-                    timestamp: latest.recordedAt,
+                    recordedAt: latest.recordedAt,
                 };
             }
         }
@@ -68,7 +69,9 @@ exports.getLatestReadings = async (localityId) => {
     }
 }
 
-// can improve query by 
+// improve this query by:
+// adding backward pagination
+// can add page number by doing total docs / limit
 exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor = null) => {
     if (!sensorType || !period) throw { status: 422, message: 'Missing query parameters' };
     try {
@@ -86,26 +89,55 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
         };
 
         if (cursor) {
-            query.recordedAt.$gt = new Date(cursor)
+            const parsedCursor = {
+                recordedAt: new Date(cursor.recordedAt),
+                _id: new mongoose.Types.ObjectId(cursor._id)
+            };
+
+            query.$or = [
+                { recordedAt: { $lt: parsedCursor.recordedAt } },
+                {
+                    recordedAt: parsedCursor.recordedAt,
+                    _id: { $lt: parsedCursor._id }
+                }
+            ]
         };
 
         const data = await IoTModel
-            .find(query, { value: 1, unit: 1, recordedAt: 1, _id: 0 })
-            .sort({ recordedAt: -1 })
-            .limit((Number(limit)));
+            .find(query, { value: 1, unit: 1, recordedAt: 1, _id: 1 })
+            .sort({ recordedAt:-1, _id: -1 })
+            .limit(Number(limit) + 1);
+
+        const hasNext = data.length > limit;
+        if (hasNext) data.pop();
+        
+        let nextCursor = data.length
+            ? {
+                recordedAt: data[data.length - 1].recordedAt,
+                _id: data[data.length - 1]._id
+            }
+            : null;
+
+        const jsonString = JSON.stringify(nextCursor);
+        const encodedCursor = Buffer.from(jsonString).toString('base64');
+        nextCursor = encodedCursor;
 
         return {
             data,
-            nextCursor: data.length
-                ? data[data.length - 1].recordedAt
-                : null,
+            pageInfo: {
+                hasNext,
+                nextCursor,
+            }
         };
     } catch (e) {
         throw (e);
     }
 }
 
-exports.getAnalytics = async (localityId, sensorType, period) => {
+// improve this query by:
+// adding backward pagination
+// can add page number by doing total docs / limit
+exports.getAnalytics = async (localityId, sensorType, period, limit = 100, cursor = null) => {
     if (!sensorType || !period) throw { status: 422, message: 'Missing query parameters' };
     try {
         // today
@@ -119,7 +151,7 @@ exports.getAnalytics = async (localityId, sensorType, period) => {
         const dateFormat = granularity === 'hourly' ? '%Y-%m-%dT%H' : '%Y-%m-%d';
 
         const dataPipeline = [
-            // 1. filter by locality, sensor, and timestamp
+            // filter by locality, sensor, and timestamp
             {
                 $match: {
                     localityId,
@@ -127,7 +159,7 @@ exports.getAnalytics = async (localityId, sensorType, period) => {
                     recordedAt: { $gte: fromDate, $lte: toDate }
                 }
             },
-            // 2. group by
+            // group by
             {
                 $group: {
                     _id: { bucket: { $dateToString: { format: dateFormat, date: '$recordedAt' } } },
@@ -139,7 +171,7 @@ exports.getAnalytics = async (localityId, sensorType, period) => {
                     count: { $sum: 1 },
                 }
             },
-            // 3. sort by
+            // sort by ascending
             { $sort: { '_id.bucket': 1 } },
             {
                 $project: {
@@ -151,13 +183,36 @@ exports.getAnalytics = async (localityId, sensorType, period) => {
                     stdDev: 1,
                     count: 1,
                     _id: 0,
-                    period
+                    period,
                 }
             }
         ];
 
-        const results = await IoTModel.aggregate(dataPipeline).exec();
-        return results;
+        let results = await IoTModel.aggregate(dataPipeline).exec();
+
+        if (cursor) {
+            results = results.filter(r => r.bucket > cursor.bucket);
+        }
+
+        const hasNext = results.length > limit;
+        if (hasNext) results = results.slice(0, limit);
+
+        const nextCursorObj = results.length
+            ? { bucket: results[results.length - 1].bucket }
+            : null;
+
+        const encodedCursor = nextCursorObj
+            ? Buffer.from(JSON.stringify(nextCursorObj)).toString('base64')
+            : null;
+
+        return {
+            data: results,
+            pageInfo: {
+                hasNext,
+                nextCursor: encodedCursor,
+            }
+        };
+
     } catch (e) {
         throw (e);
     }
