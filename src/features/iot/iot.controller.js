@@ -1,5 +1,6 @@
 const IoTService = require('./iot.service');
 const validate = require('validate.js');
+const constraints = require('./iot.valdations');
 
 // for mocking real iot sensors
 exports.generateMockData = async (req, res, next) => {
@@ -38,14 +39,7 @@ exports.getHistoricalData = async (req, res, next) => {
         cursor = JSON.parse(decoded);
     }
 
-    const issues = validate({ sensorType, period }, {
-        sensorType: {
-            presence: true,
-        },
-        period: {
-            presence: true,
-        },
-    });
+    const issues = validate({ sensorType, period }, constraints.readings);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
@@ -68,14 +62,7 @@ exports.getAnalyticalData = async (req, res, next) => {
         cursor = JSON.parse(decoded);
     }
 
-    const issues = validate({ sensorType, period }, {
-        sensorType: {
-            presence: true,
-        },
-        period: {
-            presence: true,
-        },
-    });
+    const issues = validate({ sensorType, period }, constraints.readings);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
