@@ -21,6 +21,17 @@ const canalSchema = new Schema(
             type: Number,
             required: true,
         },
+        coverage: [{
+            barangay: {
+                type: String,
+                required: true,
+            },
+            fractionalAreaHa: {
+                type: Number,
+                required: true,
+            },
+            _id: false,
+        }],
         lossFactor: {
             type: Number,
             default: 0.5,
