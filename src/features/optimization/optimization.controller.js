@@ -11,16 +11,9 @@ exports.runOptimizationService = async (req, res, next) => {
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const response = await fetch(process.env.GA_SERVICE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(params)
-        });
-
-        const data = await response.json();
-        const { optimizationDoc, paretoDocs } = await OptimizationService.saveOutputGA(req.user, data);
+        const { updatedOptimizationDoc, paretoDocs } = await OptimizationService.processOptimizationRun(req.user, params);
         
-        return res.json({ optimizationRun: optimizationDoc, paretoSolutions: paretoDocs });
+        return res.json({ optimizationRun: updatedOptimizationDoc, paretoSolutions: paretoDocs });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
