@@ -4,6 +4,11 @@ const Schema = mongoose.Schema;
 
 const optimizationRunSchema = new Schema(
     {
+        localityId: {
+            type: mongoose.Types.ObjectId,
+            ref: 'Locality',
+            required: true,
+        },
         triggeredBy: {
             _id: {
                 type: mongoose.Types.ObjectId,
@@ -29,10 +34,7 @@ const optimizationRunSchema = new Schema(
                 required: true,
             }
         },
-        inputSnapshot: {
-            type: mongoose.Types.Mixed,
-            required: true,
-        },
+        inputSnapshot: [], // fix when inputs are finalized
         status: {
             type: String,
             enum: ['pending', 'completed', 'failed'],

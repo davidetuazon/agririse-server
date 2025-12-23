@@ -28,8 +28,10 @@ const basepath = '/api';
 
 const userRoute = require(path.resolve('.') + '/src/features/user/user.routes');
 const iotRoute = require(path.resolve('.') + '/src/features/iot/iot.routes');
+const optimizationRoute = require(path.resolve('.') + '/src/features/optimization/optimization.routes');
 
-app.use(basepath + '/v1', userRoute);
-app.use(basepath + '/v1', iotRoute);
+app.use(basepath + '/v1/user', userRoute);
+app.use(basepath + '/v1/iot', iotRoute);
+app.use(basepath + '/v1/optimization', optimizationRoute);
 
 module.exports = app;

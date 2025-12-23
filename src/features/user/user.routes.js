@@ -4,7 +4,7 @@ const router = express.Router();
 const userController = require('./user.controller');
 const utils = require('../../shared/helpers/utils');
 
-router.post('/user/login', userController.login);
+router.post('/login', userController.login);
 
 router.get('/me', utils.authenticate, async (req, res, next) => {
     try {

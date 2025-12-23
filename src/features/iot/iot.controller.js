@@ -1,6 +1,6 @@
 const IoTService = require('./iot.service');
 const validate = require('validate.js');
-const constraints = require('./iot.valdations');
+const constraints = require('./iot.validations');
 
 // for mocking real iot sensors
 exports.generateMockData = async (req, res, next) => {
