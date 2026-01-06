@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
+require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
 const { periodToMilliseconds } = require('./iot.utils');
 
@@ -49,21 +50,34 @@ exports.getLatestReadings = async (localityId) => {
     ];
 
     try {
+        const queries = sensorTypes.map(type =>
+            IoTModel.findOne({ localityId, sensorType: type })
+            .sort({ recordedAt: -1 })
+            .populate({ path: 'localityId', select: 'city province region' })
+        )
+        const docs = await Promise.all(queries);
+        
         const results = {};
+        let locality = null;
 
-        for (const type of sensorTypes) {
-            const latest = await IoTModel.findOne({ localityId, sensorType: type }).sort({ recordedAt: -1 })
+        docs.forEach(doc => {
+            if (!doc) return;
 
-            if (latest) {
-                results[type] = {
-                    value: latest.value,
-                    unit: latest.unit,
-                    recordedAt: latest.recordedAt,
-                };
+            if (!locality && doc.localityId) {
+                locality = doc.localityId;
             }
-        }
 
-        return results;
+            results[doc.sensorType] = {
+                value: doc.value,
+                unit: doc.unit,
+                recordedAt: doc.recordedAt,
+            };
+        });
+
+        return {
+            locality,
+            readings: results,
+        }
     } catch (e) {
         throw (e);
     }
