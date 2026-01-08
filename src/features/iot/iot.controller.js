@@ -68,7 +68,7 @@ exports.getAnalyticalData = async (req, res, next) => {
     try {
         const data = await IoTService.getAnalytics(localityId, sensorType, period, limit, cursor);
 
-        res.status(200).json({ data });
+        res.status(200).json(data);
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
