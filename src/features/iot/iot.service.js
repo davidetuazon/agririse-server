@@ -162,51 +162,63 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
         fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
 
         const granularity = (period === '1day' || period === '7days') ? 'hourly' : 'daily';
-        const dateFormat = granularity === 'hourly' ? '%Y-%m-%dT%H' : '%Y-%m-%d';
 
-        const dataPipeline = [
-            // filter by locality, sensor, and timestamp
-            {
+        const dataPipeline = [];
+
+        dataPipeline.push({
+            $match: {
+                localityId,
+                sensorType,
+                recordedAt: { $gte: fromDate, $lte: toDate }
+            }
+        });
+
+        if(cursor) {
+            dataPipeline.push({
                 $match: {
-                    localityId,
-                    sensorType,
-                    recordedAt: { $gte: fromDate, $lte: toDate }
+                    recordedAt: { $gt: cursor}
                 }
-            },
-            // group by
+            });
+        };
+
+        dataPipeline.push(
             {
                 $group: {
-                    _id: { bucket: { $dateToString: { format: dateFormat, date: '$recordedAt' } } },
-                    totalValue: { $sum: '$value' },
-                    avgValue: { $avg: '$value' },
-                    minValue: { $min: '$value' },
-                    maxValue: { $max: '$value' },
+                    _id: { 
+                        bucket: { 
+                            $dateTrunc: {
+                                date: '$recordedAt',
+                                unit: granularity === 'hourly' ? 'hour' : 'day',
+                                timezone: 'UTC'
+                            } 
+                        }
+                    },
+                    total: { $sum: '$value' },
+                    avg: { $avg: '$value' },
+                    min: { $min: '$value' },
+                    max: { $max: '$value' },
                     stdDev: { $stdDevSamp: '$value' },
                     count: { $sum: 1 },
-                }
+                }        
             },
-            // sort by ascending
             { $sort: { '_id.bucket': 1 } },
+            { $limit: limit + 1 },
             {
                 $project: {
                     bucket: '$_id.bucket',
-                    totalValue: 1,
-                    avgValue: 1,
-                    minValue: 1,
-                    maxValue: 1,
+                    total: 1,
+                    avg: 1,
+                    min: 1,
+                    max: 1,
                     stdDev: 1,
                     count: 1,
                     _id: 0,
                     period,
                 }
             }
-        ];
+        );
 
         let results = await IoTModel.aggregate(dataPipeline).exec();
-
-        if (cursor) {
-            results = results.filter(r => r.bucket > cursor.bucket);
-        }
 
         const hasNext = results.length > limit;
         if (hasNext) results = results.slice(0, limit);
@@ -220,7 +232,20 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
             : null;
 
         return {
-            data: results,
+            series: results.map(r => ({
+                timestamp: r.bucket,
+                total: r.total,
+                avg: r.avg,
+                min: r.min,
+                max: r.max,
+                stdDev: r.stdDev,
+                count: r.count,
+            })),
+            meta: {
+                period,
+                granularity,
+                metric: 'avg',
+            },
             pageInfo: {
                 hasNext,
                 nextCursor: encodedCursor,
