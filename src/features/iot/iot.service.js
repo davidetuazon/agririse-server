@@ -86,6 +86,9 @@ exports.getLatestReadings = async (localityId) => {
 // improve this query by:
 // adding backward pagination
 // can add page number by doing total docs / limit
+
+// Pagination scheme:
+// - Sorted by recordedAt DESC (newest -> oldest)
 exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor = null) => {
     if (!sensorType || !period) throw { status: 422, message: 'Missing query parameters' };
     try {
@@ -124,20 +127,21 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
 
         const hasNext = data.length > limit;
         if (hasNext) data.pop();
-        
-        let nextCursor = data.length
-            ? {
+
+        let nextCursor = null;
+
+        if (data.length) {
+            nextCursor = Buffer.from(JSON.stringify({
                 recordedAt: data[data.length - 1].recordedAt,
                 _id: data[data.length - 1]._id
-            }
-            : null;
-
-        const jsonString = JSON.stringify(nextCursor);
-        const encodedCursor = Buffer.from(jsonString).toString('base64');
-        nextCursor = encodedCursor;
+            })).toString('base64');
+        }
 
         return {
             data,
+            meta: {
+                period,
+            },
             pageInfo: {
                 hasNext,
                 nextCursor,
@@ -151,6 +155,9 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
 // improve this query by:
 // adding backward pagination
 // can add page number by doing total docs / limit
+
+// Pagination scheme:
+// - Sorted by recordedAt ASC (oldest -> newest)
 exports.getAnalytics = async (localityId, sensorType, period, limit = 100, cursor = null) => {
     if (!sensorType || !period) throw { status: 422, message: 'Missing query parameters' };
     try {
@@ -161,7 +168,7 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
         const fromDate = new Date(toDate.getTime() - periodToMilliseconds(period));
         fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
 
-        const granularity = (period === '1day' || period === '7days') ? 'hourly' : 'daily';
+        const granularity = (period === '1day' || period === '7days') ? 'Hourly' : 'Daily';
 
         const dataPipeline = [];
 
@@ -244,7 +251,7 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
             meta: {
                 period,
                 granularity,
-                metric: 'avg',
+                metric: 'Average',
             },
             pageInfo: {
                 hasNext,
