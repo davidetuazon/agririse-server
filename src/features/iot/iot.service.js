@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
 require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
-const { periodToMilliseconds } = require('./iot.utils');
+const { periodToMilliseconds, SENSOR_META } = require('./iot.utils');
 
 // for mocking real iot sensors
 exports.generateMockReadings = async (localityId) => {
@@ -121,7 +121,7 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
         };
 
         const data = await IoTModel
-            .find(query, { value: 1, unit: 1, recordedAt: 1, _id: 1 })
+            .find(query, { value: 1, recordedAt: 1, _id: 1 })
             .sort({ recordedAt:-1, _id: -1 })
             .limit(Number(limit) + 1);
 
@@ -137,10 +137,14 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
             })).toString('base64');
         }
 
+        const unit = SENSOR_META[sensorType].unit;
+
         return {
             data,
             meta: {
                 period,
+                unit,
+                sensorType,
             },
             pageInfo: {
                 hasNext,
@@ -238,6 +242,8 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
             ? Buffer.from(JSON.stringify(nextCursorObj)).toString('base64')
             : null;
 
+        const unit = SENSOR_META[sensorType].unit;
+
         return {
             series: results.map(r => ({
                 timestamp: r.bucket,
@@ -251,6 +257,8 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
             meta: {
                 period,
                 granularity,
+                unit,
+                sensorType,
                 metric: 'Average',
             },
             pageInfo: {
