@@ -31,7 +31,8 @@ exports.getLatestData = async (req, res, next) => {
 
 exports.getHistoricalData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { sensorType, period, limit } = req.query;
+    const { sensorType, startDate, endDate, limit } = req.query;
+    let limitNum = parseInt(limit);
     let cursor = req.query.cursor;
 
     if (cursor) {
@@ -39,11 +40,11 @@ exports.getHistoricalData = async (req, res, next) => {
         cursor = JSON.parse(decoded);
     }
 
-    const issues = validate({ sensorType, period }, constraints.readings);
+    const issues = validate({ sensorType, startDate, endDate }, constraints.readings);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const data = await IoTService.getHistory(localityId, sensorType, period, limit, cursor);
+        const data = await IoTService.getHistory(localityId, sensorType, startDate, endDate, limitNum, cursor);
 
         res.status(200).json(data);
     } catch (e) {
@@ -54,7 +55,8 @@ exports.getHistoricalData = async (req, res, next) => {
 
 exports.getAnalyticalData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { sensorType, period, limit } = req.query;
+    const { sensorType, startDate, endDate, limit } = req.query;
+    let limitNum = parseInt(limit, 50) || 100;
     let cursor = req.query.cursor;
 
     if (cursor) {
@@ -62,11 +64,11 @@ exports.getAnalyticalData = async (req, res, next) => {
         cursor = JSON.parse(decoded);
     }
 
-    const issues = validate({ sensorType, period }, constraints.readings);
+    const issues = validate({ sensorType, startDate, endDate }, constraints.readings);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const data = await IoTService.getAnalytics(localityId, sensorType, period, limit, cursor);
+        const data = await IoTService.getAnalytics(localityId, sensorType, startDate, endDate, limitNum, cursor);
 
         res.status(200).json(data);
     } catch (e) {

@@ -71,6 +71,7 @@ exports.getLatestReadings = async (localityId) => {
                 value: doc.value,
                 unit: doc.unit,
                 recordedAt: doc.recordedAt,
+                sensorType: SENSOR_META[doc.sensorType].label,
             };
         });
 
@@ -89,15 +90,20 @@ exports.getLatestReadings = async (localityId) => {
 
 // Pagination scheme:
 // - Sorted by recordedAt DESC (newest -> oldest)
-exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor = null) => {
-    if (!sensorType || !period) throw { status: 422, message: 'Missing query parameters' };
+exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, cursor = null) => {
+    if (!sensorType || !startDate || !endDate) throw { status: 422, message: 'Missing query parameters' };
     try {
-        // today
-        const toDate = new Date();
-        toDate.setUTCHours(23, 59, 59, 999); // end of day UTC
-        // period range
-        const fromDate = new Date(toDate.getTime() - periodToMilliseconds(period));
+        const fromDate = new Date(startDate);
+        const toDate = new Date(endDate);
+        // date range query validations
+        if (isNaN(fromDate) || isNaN(toDate)) throw { status: 400, message: 'Invalid date format' };
+        if (fromDate >= toDate) throw { status: 400, message: 'Start date must be before end date' };
+        // set max date range query to be lte 1year
+        const MAX_RANGE_DAYS = 365;
+        if ((toDate - fromDate) / (1000 * 60 * 60 * 24) > MAX_RANGE_DAYS) throw { status: 400, message: 'Date range too large' };
+
         fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
+        toDate.setUTCHours(23, 59, 59, 999); // end of day UTC
 
         const query = {
             localityId,
@@ -129,7 +135,6 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
         if (hasNext) data.pop();
 
         let nextCursor = null;
-
         if (data.length) {
             nextCursor = Buffer.from(JSON.stringify({
                 recordedAt: data[data.length - 1].recordedAt,
@@ -137,14 +142,12 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
             })).toString('base64');
         }
 
-        const unit = SENSOR_META[sensorType].unit;
-
         return {
             data,
             meta: {
-                period,
-                unit,
-                sensorType,
+                dateRange: { startDate: fromDate, endDate: toDate },
+                unit: SENSOR_META[sensorType].unit,
+                sensorType: SENSOR_META[sensorType].label,
             },
             pageInfo: {
                 hasNext,
@@ -162,17 +165,31 @@ exports.getHistory = async (localityId, sensorType, period, limit = 100, cursor 
 
 // Pagination scheme:
 // - Sorted by recordedAt ASC (oldest -> newest)
-exports.getAnalytics = async (localityId, sensorType, period, limit = 100, cursor = null) => {
-    if (!sensorType || !period) throw { status: 422, message: 'Missing query parameters' };
+exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit = 100, cursor = null) => {
+    if (!sensorType || !startDate || !endDate) throw { status: 422, message: 'Missing query parameters' };
     try {
-        // today
-        const toDate = new Date();
-        toDate.setUTCHours(23, 59, 59, 999); // end of day UTC
-        // period range
-        const fromDate = new Date(toDate.getTime() - periodToMilliseconds(period));
-        fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
+        const fromDate = new Date(startDate);
+        const toDate = new Date(endDate);
+        // date range query validations
+        if (isNaN(fromDate) || isNaN(toDate)) throw { status: 400, message: 'Invalid date format' };
+        if (fromDate >= toDate) throw { status: 400, message: 'Start date must be before end date' };
+        // set max date range query to be lte 1year
+        const MAX_RANGE_DAYS = 365;
+        if ((toDate - fromDate) / (1000 * 60 * 60 * 24) > MAX_RANGE_DAYS) throw { status: 400, message: 'Date range too large' };
 
-        const granularity = (period === '1day' || period === '7days') ? 'Hourly' : 'Daily';
+        fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
+        toDate.setUTCHours(23, 59, 59, 999); // end of day UTC
+
+        const rangeDays = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
+        
+        let granularity;
+        if (rangeDays <= 2) {
+            granularity = 'hourly';
+        } else if (rangeDays <= 90) {
+            granularity = 'daily';
+        } else {
+            granularity = 'weekly'
+        }
 
         const dataPipeline = [];
 
@@ -199,7 +216,11 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
                         bucket: { 
                             $dateTrunc: {
                                 date: '$recordedAt',
-                                unit: granularity === 'hourly' ? 'hour' : 'day',
+                                unit: granularity === 'hourly'
+                                            ? 'hour'
+                                            : granularity === 'daily'
+                                                ? 'day'
+                                                : 'week',
                                 timezone: 'UTC'
                             } 
                         }
@@ -224,7 +245,6 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
                     stdDev: 1,
                     count: 1,
                     _id: 0,
-                    period,
                 }
             }
         );
@@ -255,11 +275,11 @@ exports.getAnalytics = async (localityId, sensorType, period, limit = 100, curso
                 count: r.count,
             })),
             meta: {
-                period,
+                dateRange: { startDate: fromDate, endDate: toDate },
                 granularity,
                 unit,
-                sensorType,
-                metric: 'Average',
+                sensorType: SENSOR_META[sensorType].label,
+                metric: 'average',
             },
             pageInfo: {
                 hasNext,
