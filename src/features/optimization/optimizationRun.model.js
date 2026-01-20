@@ -2,8 +2,76 @@ const mongoose = require('mongoose');
 const mongoosePaginate = require('mongoose-paginate-v2');
 const Schema = mongoose.Schema;
 
+const canalInputSchema = new Schema(
+    {
+        _id: {
+            type: mongoose.Types.ObjectId,
+            required: true,
+        },
+        mainLateralId: {
+            type: String,
+            required: true,
+        },
+        tbsByDamHa: {
+            type: Number,
+            required: true,
+        },
+        netWaterDemandM3: {
+            type: Number,
+            required: true,
+        },
+        seepageM3: {
+            type: Number,
+            required: true,
+        },
+        lossFactorPercentage: {
+            type: Number,
+            required: true,
+        },
+        coverage: [{
+            barangay: {
+                type: String,
+                required: true,
+            },
+            fractionalAreaHa: {
+                type: Number,
+                required: true,
+            },
+            _id: false,
+        }],
+    }, { _id: false }
+)
+
+const inputSnapshotSchema = new Schema(
+    {
+        scenario: {
+            type: String,
+            enum: ['dry season', 'wet season'],
+            default: 'dry season'
+        },
+        cropVariant: {
+            type: String,
+            enum: ['main', 'second'],
+            default: 'main'
+        },
+        totalSeasonalWaterSupplyM3: {
+            type: Number,
+            required: true,
+        },
+        readings: {
+            type: Map,
+            of: Schema.Types.Mixed,
+        },
+        canalInput: [canalInputSchema],
+    }, { _id: false }
+)
+
 const optimizationRunSchema = new Schema(
     {
+        deleted: {
+            type: Boolean,
+            default: false,
+        },
         localityId: {
             type: mongoose.Types.ObjectId,
             ref: 'Locality',
@@ -24,17 +92,7 @@ const optimizationRunSchema = new Schema(
             },
             role: String
         },
-        timeWindow: {
-            from: {
-                type: Date,
-                default: Date.now,
-            },
-            to: {
-                type: Date,
-                required: true,
-            }
-        },
-        inputSnapshot: [], // fix when inputs are finalized
+        inputSnapshot: inputSnapshotSchema,
         status: {
             type: String,
             enum: ['pending', 'completed', 'failed'],

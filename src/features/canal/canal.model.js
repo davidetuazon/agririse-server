@@ -3,6 +3,10 @@ const Schema = mongoose.Schema;
 
 const canalSchema = new Schema(
     {
+        deleted: {
+            type: Boolean,
+            default: false,
+        },
         localityId: {
             type: mongoose.Types.ObjectId,
             ref: 'Locality',
@@ -13,6 +17,16 @@ const canalSchema = new Schema(
         },
         subLateral: [String],
         barangays: [String],
+        canalDimensions: {
+          base: {
+            type: Number,
+            required: true,
+          },
+          waterDepth: {
+            type: Number,
+            required: true,
+          },
+        },
         totalCanalDistanceKm: {
             type: Number,
             required: true,
@@ -32,9 +46,13 @@ const canalSchema = new Schema(
             },
             _id: false,
         }],
-        lossFactor: {
+        seepageM3: {
             type: Number,
-            default: 0.5,
+            default: 0,
+        },
+        lossFactorPercentage: {
+            type: Number,
+            default: 0,
         },
         netWaterDemandM3: {
             type: Number,

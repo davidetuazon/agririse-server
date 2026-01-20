@@ -3,6 +3,10 @@ const Schema = mongoose.Schema;
 
 const sensorReadingSchema = new Schema(
     {
+        deleted: {
+            type: Boolean,
+            default: false,
+        },
         localityId: {
             type: mongoose.Types.ObjectId,
             ref: 'Locality',

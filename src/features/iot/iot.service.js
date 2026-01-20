@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
 require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
-const { periodToMilliseconds, SENSOR_META } = require('./iot.utils');
+const { SENSOR_META } = require('./iot.utils');
 
 // for mocking real iot sensors
 exports.generateMockReadings = async (localityId) => {

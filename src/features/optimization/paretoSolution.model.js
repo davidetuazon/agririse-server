@@ -4,7 +4,15 @@ const Schema = mongoose.Schema;
 
 const allocationUnitSchema = new Schema(
     {
-        lateralId: {
+        deleted: {
+            type: Boolean,
+            default: false,
+        },
+        _id: {
+            type: mongoose.Types.ObjectId,
+            required: true,
+        },
+        mainLateralId: {
             type: String,
             required: true,
         },
@@ -22,14 +30,10 @@ const allocationUnitSchema = new Schema(
             type: Number,
             required: true,
         },
-        allocatedWater: {
+        allocatedWaterM3: {
             value: {
                 type: Number,
                 required: true,
-            },
-            unit: {
-                type: String,
-                default: 'm3'
             },
         }
     }, { _id: false }

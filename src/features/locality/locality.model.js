@@ -4,6 +4,10 @@ const Schema = mongoose.Schema;
 
 const localitySchema = new Schema(
     {
+        deleted: {
+            type: Boolean,
+            default: false,
+        },
         city: {
             type: String,
             required: true,
@@ -20,6 +24,16 @@ const localitySchema = new Schema(
             type: mongoose.Types.ObjectId,
             ref: 'Canal'
         }],
+        totalServiceAreaHA: {
+            type: Number,
+            unit: 'Hectares',
+            default: 0,
+        },
+        totalAreaNetwaterDemandM3: {
+            type: Number,
+            unit: 'm³',
+            default: 0,
+        },
     }, { timestamps: true }
 );
 
