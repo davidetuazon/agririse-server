@@ -10,12 +10,9 @@ exports.runOptimizationService = async (req, res, next) => {
 
     try {
         const optimizationInput = await OptimizationService.preProcessOptimizationInputs(req.user, params);
-        // const { updatedOptimizationDoc, paretoDocs } = await OptimizationService.processOptimizationRun(req.user, optimizationInput);
+        const { updatedOptimizationDoc, paretoDocs } = await OptimizationService.processOptimizationRun(req.user, optimizationInput);
        
-        // return res.json({ optimizationRun: updatedOptimizationDoc, paretoSolutions: paretoDocs });
-
-        const output = await OptimizationService.processOptimizationRun(req.user, optimizationInput);
-        return res.json({ output });
+        return res.json({ optimizationRun: updatedOptimizationDoc, paretoSolutions: paretoDocs });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
