@@ -77,8 +77,6 @@ exports.processOptimizationRun = async (user, optimizationInput) => {
             body: JSON.stringify(cleanedGAInputs)
         });
         const output = await response.json();
-        
-        // return output;
 
         // ParetoSolution Documentation and Optimization Input Document Updates
         const updatedOptimizationDoc = await OptimizationRunModel.findByIdAndUpdate(
