@@ -17,12 +17,10 @@ exports.generateMockData = async (req, res, next) => {
 }
 
 exports.getLatestData = async (req, res, next) => {
-    const localityId = req.user.localityId;
-
     try {
-        const data = await IoTService.getLatestReadings(localityId);
+        const data = await IoTService.getLatestReadings(req.user);
 
-        res.status(200).json({ data });
+        res.status(200).json(data);
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
@@ -71,6 +69,34 @@ exports.getAnalyticalData = async (req, res, next) => {
         const data = await IoTService.getAnalytics(localityId, sensorType, startDate, endDate, limitNum, cursor);
 
         res.status(200).json(data);
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.generateExportDataCSV = async (req, res, next) => {
+    const localityId = req.user.localityId;
+    const { sensorType, startDate, endDate, type } = req.query;
+    const issues = validate({ sensorType, startDate, endDate, type }, constraints.exportCSV);
+    if (issues) return res.status(422).json({ error: issues });
+
+    try {
+        const csv = await IoTService.exportDataCSV(localityId, sensorType, startDate, endDate, type);
+        const csvFormatted = csv.replace(/\n/g, '\r\n');
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename=${type}_${sensorType}_${startDate}_${endDate}.csv`
+        )
+
+        // let frontend handle the download
+        // this allows user to review the data being exported before downloading
+        res.status(200).json({
+            filename: `${type}_${sensorType}_${startDate}_${endDate}.csv`,
+            csv: csvFormatted,
+        });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });

@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
 require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
-const { SENSOR_META } = require('./iot.utils');
+const { SENSOR_META, DATA_TYPE, generateCSV } = require('./iot.utils');
+const { setCache, getCache, clearCache, clearAllCache } = require('../../cache/redis-cache');
 
 // for mocking real iot sensors
 exports.generateMockReadings = async (localityId) => {
@@ -41,7 +42,7 @@ exports.generateMockReadings = async (localityId) => {
 }
 
 
-exports.getLatestReadings = async (localityId) => {
+exports.getLatestReadings = async (user) => {
     const sensorTypes = [
         'rainfall',
         'humidity',
@@ -49,9 +50,13 @@ exports.getLatestReadings = async (localityId) => {
         'damWaterLevel'
     ];
 
+    const cacheKey = `${user._id}:latest-${user.localityId}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     try {
         const queries = sensorTypes.map(type =>
-            IoTModel.findOne({ localityId, sensorType: type })
+            IoTModel.findOne({ localityId: user.localityId, sensorType: type })
             .sort({ recordedAt: -1 })
             .populate({ path: 'localityId', select: 'city province region' })
         )
@@ -75,10 +80,13 @@ exports.getLatestReadings = async (localityId) => {
             };
         });
 
-        return {
+        const data = {
             locality,
             readings: results,
-        }
+        };
+        setCache(cacheKey, data);
+
+        return data;
     } catch (e) {
         throw (e);
     }
@@ -92,6 +100,11 @@ exports.getLatestReadings = async (localityId) => {
 // - Sorted by recordedAt DESC (newest -> oldest)
 exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, cursor = null) => {
     if (!sensorType || !startDate || !endDate) throw { status: 422, message: 'Missing query parameters' };
+    
+    const cacheKey = `${localityId}:history-${sensorType}:${startDate}-${endDate}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     try {
         const fromDate = new Date(startDate);
         const toDate = new Date(endDate);
@@ -142,7 +155,7 @@ exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, c
             })).toString('base64');
         }
 
-        return {
+        const results = {
             data,
             meta: {
                 dateRange: { startDate: fromDate, endDate: toDate },
@@ -154,6 +167,9 @@ exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, c
                 nextCursor,
             }
         };
+        setCache(cacheKey, results);
+
+        return results;
     } catch (e) {
         throw (e);
     }
@@ -167,6 +183,11 @@ exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, c
 // - Sorted by recordedAt ASC (oldest -> newest)
 exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit = 100, cursor = null) => {
     if (!sensorType || !startDate || !endDate) throw { status: 422, message: 'Missing query parameters' };
+    
+    const cacheKey = `${localityId}:analytics-${sensorType}:${startDate}-${endDate}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     try {
         const fromDate = new Date(startDate);
         const toDate = new Date(endDate);
@@ -264,7 +285,7 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
 
         const unit = SENSOR_META[sensorType].unit;
 
-        return {
+        const aggregatedResults = {
             series: results.map(r => ({
                 timestamp: r.bucket,
                 total: r.total,
@@ -286,7 +307,29 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
                 nextCursor: encodedCursor,
             }
         };
+        setCache(cacheKey, aggregatedResults);
 
+        return aggregatedResults;
+    } catch (e) {
+        throw (e);
+    }
+}
+
+exports.exportDataCSV = async (localityId, sensorType, startDate, endDate, type) => {
+    if (!sensorType || !startDate || !endDate || !type) throw { status: 422, message: 'Missing query parameters' };
+    
+    const cacheKey = `${localityId}:${type}-${sensorType}:${startDate}-${endDate}`;
+    const cached = getCache(cacheKey);
+
+    if (!cached) throw { status: 409, message: `No cached ${type} data available. Please load ${type} data first.` };
+
+    try {
+        const dataArray = type === 'analytics' ? cached.series : cached.data;
+        if (!dataArray || dataArray.length === 0) {
+            return DATA_TYPE[type].join(',');
+        }
+
+        return generateCSV(dataArray, DATA_TYPE[type]);
     } catch (e) {
         throw (e);
     }
