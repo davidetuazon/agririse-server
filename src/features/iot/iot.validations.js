@@ -17,7 +17,7 @@ const readings = {
     }
 };
 
-const exportCSV = {
+const exportData = {
     sensorType: {
         presence: { allowEmpty: false, message: 'is required.' },
         inclusion: {
@@ -38,9 +38,37 @@ const exportCSV = {
             message: 'of: %{value} - is not a valid data type.'
         }
     },
+    format: {
+        presence: { allowEmpty: false, message: 'is required.' },
+        inclusion: {
+            within: ['csv', 'json'],
+            message: 'of "%{value}" is an invalid export format.'
+        }
+    }
+}
+
+const importData = {
+    data: {
+        presence: { allowEmpty: false, message: 'is required.' },
+    },
+    sensorType: {
+        presence: { allowEmpty: false, message: 'is required.' },
+        inclusion: {
+            within: ALLOWED_SENSOR_TYPES,
+            message: 'of: %{value} - has no readings or is not yet deployed.'
+        }
+    },
+    type: {
+        presence: { allowEmpty: false, message: 'is required.' },
+        inclusion: {
+            within: ALLOWED_TYPES,
+            message: 'of: %{value} - is not a valid data type.'
+        }
+    },
 }
 
 module.exports = {
     readings,
-    exportCSV,
+    exportData,
+    importData,
 }
