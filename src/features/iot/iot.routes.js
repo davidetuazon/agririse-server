@@ -10,8 +10,11 @@ router.get('/history', utils.authenticate, iotController.getHistoricalData);
 
 router.get('/analytics', utils.authenticate, iotController.getAnalyticalData);
 
-// this route expects a url like this: /export?type=history&sensorType=damWaterLevel&startDate=2025-12-28&endDate=2026-01-27
-router.get('/data/export', utils.authenticate, iotController.generateExportData);
+// use this route for generating and previewing data to export
+router.post('/data/export', utils.authenticate, iotController.generateExportData);
+
+// use this route for downloading exported data
+router.post('/data/export/save', utils.authenticate, iotController.saveExportData);
 
 router.post('/data/import', utils.authenticate, iotController.processImportData);
 

@@ -29,20 +29,14 @@ exports.getLatestData = async (req, res, next) => {
 
 exports.getHistoricalData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { sensorType, startDate, endDate, limit } = req.query;
+    const { sensorType, startDate, endDate, limit, cursor } = req.query;
     let limitNum = parseInt(limit) || 50;
-    let cursor = req.query.cursor;
-
-    if (cursor) {
-        const decoded = Buffer.from(cursor, 'base64').toString('utf8');
-        cursor = JSON.parse(decoded);
-    }
 
     const issues = validate({ sensorType, startDate, endDate }, constraints.readings);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const data = await IoTService.getHistory(localityId, sensorType, startDate, endDate, limitNum, cursor);
+        const data = await IoTService.getHistory(localityId, sensorType, startDate, endDate, limitNum, parseInt(cursor));
 
         res.status(200).json(data);
     } catch (e) {
@@ -53,20 +47,12 @@ exports.getHistoricalData = async (req, res, next) => {
 
 exports.getAnalyticalData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { sensorType, startDate, endDate, limit } = req.query;
-    let limitNum = parseInt(limit) || 50;
-    let cursor = req.query.cursor;
-
-    if (cursor) {
-        const decoded = Buffer.from(cursor, 'base64').toString('utf8');
-        cursor = JSON.parse(decoded);
-    }
-
+    const { sensorType, startDate, endDate } = req.query;
     const issues = validate({ sensorType, startDate, endDate }, constraints.readings);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const data = await IoTService.getAnalytics(localityId, sensorType, startDate, endDate, limitNum, cursor);
+        const data = await IoTService.getAnalytics(localityId, sensorType, startDate, endDate);
 
         res.status(200).json(data);
     } catch (e) {
@@ -77,33 +63,16 @@ exports.getAnalyticalData = async (req, res, next) => {
 
 exports.generateExportData = async (req, res, next) => {
     const localityId = req.user.localityId;
-    const { type, sensorType, startDate, endDate, format, limit } = req.query;
-    let limitNum = parseInt(limit) || 50;
-    let cursor = req.query.cursor;
-
-    if (cursor) {
-        const decoded = Buffer.from(cursor, 'base64').toString('utf8');
-        cursor = JSON.parse(decoded);
-    }
-
-    const issues = validate({ sensorType, startDate, endDate, type, format }, constraints.exportData);
+    const { category, sensorType, startDate, endDate, format } = {...req.body};
+    const issues = validate({ category, sensorType, startDate, endDate, format }, constraints.exportData);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const csv = await IoTService.exportData(localityId, sensorType, startDate, endDate, type, limitNum, cursor, format);
-        const csvFormatted = csv.replace(/\n/g, '\r\n');
+        const exportData = await IoTService.exportData(localityId, category, sensorType, startDate, endDate, format, true);
 
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader(
-            'Content-Disposition',
-            `attachment; filename=${type}_${sensorType}_${startDate}_${endDate}.csv`
-        )
-
-        // let frontend handle the download
-        // this allows user to review the data being exported before downloading
         res.status(200).json({
-            filename: `${type}_${sensorType}_${startDate}_${endDate}.csv`,
-            csv: csvFormatted,
+            fileName: `${category}_${sensorType}_${startDate}_${endDate}.${ format === 'csv' ? 'csv' : 'json' }`,
+            data: exportData
         });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
@@ -111,13 +80,43 @@ exports.generateExportData = async (req, res, next) => {
     }
 }
 
-exports.processImportData = async (req, res, next) => {
-    const { data, type, sensorType } = {...req.body};
-    const issues = validate({ data, type, sensorType }, constraints.importData);
+exports.saveExportData = async (req, res, next) => {
+    const localityId = req.user.localityId;
+    const { category, sensorType, startDate, endDate, format } = {...req.body};
+    const issues = validate({ sensorType, startDate, endDate, category, format }, constraints.exportData);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const importPreview = await IoTService.importData(req.user, data, type, sensorType);
+        const exportData = await IoTService.exportData(localityId, category, sensorType, startDate, endDate, format);
+
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename=${category}_${sensorType}_${startDate}_${endDate}.csv`
+            );
+
+            res.status(200).send(exportData);
+        } else {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename=${category}_${sensorType}_${startDate}_${endDate}.json`
+            );
+        }
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.processImportData = async (req, res, next) => {
+    const { data, category, sensorType } = {...req.body};
+    const issues = validate({ data, category, sensorType }, constraints.importData);
+    if (issues) return res.status(422).json({ error: issues });
+
+    try {
+        const importPreview = await IoTService.importData(req.user, data, category, sensorType);
 
         res.status(200).json(importPreview);
     } catch (e) {

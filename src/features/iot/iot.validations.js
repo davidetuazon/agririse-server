@@ -31,7 +31,7 @@ const exportData = {
     endDate: {
         presence: { allowEmpty: false, message: 'is required.' },
     },
-    type: {
+    category: {
         presence: { allowEmpty: false, message: 'is required.' },
         inclusion: {
             within: ALLOWED_TYPES,
@@ -58,7 +58,7 @@ const importData = {
             message: 'of: %{value} - has no readings or is not yet deployed.'
         }
     },
-    type: {
+    category: {
         presence: { allowEmpty: false, message: 'is required.' },
         inclusion: {
             within: ALLOWED_TYPES,

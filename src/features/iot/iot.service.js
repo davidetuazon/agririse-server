@@ -58,6 +58,7 @@ exports.getLatestReadings = async (user) => {
             .populate({ path: 'localityId', select: 'city province region' })
         )
         const docs = await Promise.all(queries);
+        if (!docs) throw { status: 404, message: 'Displayed data is up to date' };
         
         const results = {};
         let locality = null;
@@ -88,92 +89,87 @@ exports.getLatestReadings = async (user) => {
     }
 }
 
-// improve this query by:
-// adding backward pagination
-// can add page number by doing total docs / limit
-
-// Pagination scheme:
-// - Sorted by recordedAt DESC (newest -> oldest)
-exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, cursor = null) => {
+// this service cache minimal info from expensive queries
+// then hydrates what is needed with cheap DB calls
+exports.getHistory = async (localityId, sensorType, startDate, endDate, limit, cursor = 0) => {
     if (!sensorType || !startDate || !endDate) throw { status: 422, message: 'Missing query parameters' };
 
-    try {
-        const fromDate = new Date(startDate);
-        const toDate = new Date(endDate);
-        // date range query validations
-        if (isNaN(fromDate) || isNaN(toDate)) throw { status: 400, message: 'Invalid date format' };
-        if (fromDate >= toDate) throw { status: 400, message: 'Start date must be before end date' };
-        // set max date range query to be lte 1year
-        const MAX_RANGE_DAYS = 365;
-        if ((toDate - fromDate) / (1000 * 60 * 60 * 24) > MAX_RANGE_DAYS) throw { status: 400, message: 'Date range too large' };
+    const cacheKey = `${localityId}:history_${sensorType}:${startDate}_${endDate}`;
+    let cached = getCache(cacheKey);
 
-        fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
-        toDate.setUTCHours(23, 59, 59, 999); // end of day UTC
+     try {
+        if (!cached) {
+            const fromDate = new Date(startDate);
+            const toDate = new Date(endDate);
+            // date range query validations
+            if (isNaN(fromDate) || isNaN(toDate)) throw { status: 400, message: 'Invalid date format' };
+            if (fromDate >= toDate) throw { status: 400, message: 'Start date must be before end date' };
+            // set max date range query to be lte 1year
+            const MAX_RANGE_DAYS = 365;
+            if ((toDate - fromDate) / (1000 * 60 * 60 * 24) > MAX_RANGE_DAYS) throw { status: 400, message: 'Date range too large' };
 
-        const query = {
+            fromDate.setUTCHours(0, 0, 0, 0);  // start of day UTC
+            toDate.setUTCHours(23, 59, 59, 999); // end of day UTC
+
+            const query = {
             localityId,
             sensorType,
             recordedAt: { $gte: fromDate, $lte: toDate }
-        };
-
-        if (cursor) {
-            const parsedCursor = {
-                recordedAt: new Date(cursor.recordedAt),
-                _id: new mongoose.Types.ObjectId(cursor._id)
             };
 
-            query.$or = [
-                { recordedAt: { $lt: parsedCursor.recordedAt } },
-                {
-                    recordedAt: parsedCursor.recordedAt,
-                    _id: { $lt: parsedCursor._id }
-                }
-            ]
-        };
+            const snaps = await IoTModel
+            .find(query, { _id: 1, recordedAt: 1 })
+            .sort({ recordedAt: -1, _id: -1 })
+            .lean();
+            if (!snaps) throw { status: 404, message: 'No valid data for date range in database' };
 
-        const data = await IoTModel
-            .find(query, { value: 1, recordedAt: 1, _id: 1 })
-            .sort({ recordedAt:-1, _id: -1 })
-            .limit(Number(limit) + 1);
+            cached = {
+            snaps,
+            meta: {
+                sensorType: SENSOR_META[sensorType].label,
+                unit: SENSOR_META[sensorType].unit,
+                dateRange: { fromDate, toDate }
+            },
+            createdAt: Date.now()
+            };
 
-        const hasNext = data.length > limit;
-        if (hasNext) data.pop();
-
-        let nextCursor = null;
-        if (data.length) {
-            nextCursor = Buffer.from(JSON.stringify({
-                recordedAt: data[data.length - 1].recordedAt,
-                _id: data[data.length - 1]._id
-            })).toString('base64');
+            setCache(cacheKey, cached);
         }
 
-        const results = {
-            data,
-            meta: {
-                dateRange: { startDate: fromDate, endDate: toDate },
-                unit: SENSOR_META[sensorType].unit,
-                sensorType: SENSOR_META[sensorType].label,
-            },
+        // ---- Pagination ---- //
+        
+        const start = Number(cursor) || 0;
+        const pageSnaps = cached.snaps.slice(start, start + limit);
+
+        const docs = await IoTModel.find(
+            { _id: { $in: pageSnaps.map(d => d._id) } },
+            { value: 1, recordedAt: 1 }
+        ).lean();
+        if (!docs) throw { status: 404, message: 'No matching data found' }; 
+
+        // re-ordering and sorting hydrated data
+        const order = new Map(pageSnaps.map((d, i) => [d._id.toString(), i]));
+        docs.sort((a, b) => order.get(a._id.toString()) - order.get(b._id.toString()));
+
+        return {
+            data: docs,
+            meta: cached.meta,
             pageInfo: {
-                hasNext,
-                nextCursor,
+                hasNext: start + limit < cached.snaps.length,
+                nextCursor: start + limit
             }
         };
-
-        return results;
-    } catch (e) {
+     } catch (e) {
         throw (e);
-    }
+     }
 }
 
-// improve this query by:
-// adding backward pagination
-// can add page number by doing total docs / limit
-
-// Pagination scheme:
-// - Sorted by recordedAt ASC (oldest -> newest)
-exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit = 100, cursor = null) => {
+exports.getAnalytics = async (localityId, sensorType, startDate, endDate) => {
     if (!sensorType || !startDate || !endDate) throw { status: 422, message: 'Missing query parameters' };
+
+    const cacheKey = `${localityId}:analytics_${sensorType}:${startDate}_${endDate}`;
+    let cached = getCache(cacheKey);
+    if (cached) return cached;
 
     try {
         const fromDate = new Date(startDate);
@@ -199,25 +195,14 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
             granularity = 'weekly'
         }
 
-        const dataPipeline = [];
-
-        dataPipeline.push({
-            $match: {
-                localityId,
-                sensorType,
-                recordedAt: { $gte: fromDate, $lte: toDate }
-            }
-        });
-
-        if(cursor) {
-            dataPipeline.push({
+        const dataPipeline = [
+            {
                 $match: {
-                    recordedAt: { $gt: cursor}
+                    localityId,
+                    sensorType,
+                    recordedAt: { $gte: fromDate, $lte: toDate }
                 }
-            });
-        };
-
-        dataPipeline.push(
+            },
             {
                 $group: {
                     _id: { 
@@ -242,7 +227,6 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
                 }        
             },
             { $sort: { '_id.bucket': 1 } },
-            { $limit: limit + 1 },
             {
                 $project: {
                     bucket: '$_id.bucket',
@@ -255,23 +239,11 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
                     _id: 0,
                 }
             }
-        );
+        ];
 
-        let results = await IoTModel.aggregate(dataPipeline).exec();
-
-        const hasNext = results.length > limit;
-        if (hasNext) results = results.slice(0, limit);
-
-        const nextCursorObj = results.length
-            ? { bucket: results[results.length - 1].bucket }
-            : null;
-
-        const encodedCursor = nextCursorObj
-            ? Buffer.from(JSON.stringify(nextCursorObj)).toString('base64')
-            : null;
+        const results = await IoTModel.aggregate(dataPipeline).exec();
 
         const unit = SENSOR_META[sensorType].unit;
-
         const aggregatedResults = {
             series: results.map(r => ({
                 timestamp: r.bucket,
@@ -288,12 +260,9 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
                 unit,
                 sensorType: SENSOR_META[sensorType].label,
                 metric: 'average',
-            },
-            pageInfo: {
-                hasNext,
-                nextCursor: encodedCursor,
             }
         };
+        setCache(cacheKey, aggregatedResults);
 
         return aggregatedResults;
     } catch (e) {
@@ -301,38 +270,61 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate, limit 
     }
 }
 
-// export data currently rely on cached analytics and history data on query
-// this allows minimal db queries and exporting exactly the queried data
-exports.exportDataCSV = async (localityId, sensorType, startDate, endDate, type) => {
-    if (!sensorType || !startDate || !endDate || !type) throw { status: 422, message: 'Missing query parameters' };
+// export service rely on cached history and analytics snaps to hydrate export data
+exports.exportData = async (localityId, category, sensorType, startDate, endDate, format, preview = false, previewLimit = 50) => {
+    if (!sensorType || !startDate || !endDate || !category) throw { status: 422, message: 'Missing query parameters' };
     
-    const cacheKey = `${localityId}:${type}_${sensorType}:${startDate}_${endDate}`;
+    const cacheKey = `${localityId}:${category}_${sensorType}:${startDate}_${endDate}`;
     const cached = getCache(cacheKey);
-
-    if (!cached) throw { status: 409, message: `No cached ${type} data available. Please load ${type} data first.` };
+    if (!cached) throw { status: 409, message: `No cached ${category} data available. Please load ${category} data first.` };
 
     try {
-        const dataArray = type === 'analytics' ? cached.series : cached.data;
-        if (!dataArray || dataArray.length === 0) {
-            return DATA_TYPE[type].join(',');
+        let data;
+
+        // for analytics data
+        if (category === 'analytics') {
+            data = cached.series;
+
+            if (preview) data = data.slice(0, previewLimit);
+        // for history data
+        } else {
+            data = await IoTModel.find(
+                { _id: { $in: cached.snaps.map(d => d._id) } },
+                { value: 1, recordedAt: 1 },
+            ).lean();
+
+            const order = new Map(cached.snaps.map((d, i) => [d._id.toString(), i]));
+            data.sort((a, b) => order.get(a._id.toString()) - order.get(b._id.toString()));
+
+            if (preview) data = data.slice(0, previewLimit);
         }
 
-        return format === 'csv' ? generateCSV(dataArray, DATA_TYPE[type]) : dataArray;
+        // return headers only when no data
+        if (!data || data.length === 0) return DATA_TYPE[category].join(',');
+
+        const csv = generateCSV(data, DATA_TYPE[category]);
+
+        const formattedData = format === 'csv' 
+            ? csv.replace(/\n/g, '\r\n')
+            : data;
+        if (!formattedData || formattedData.length === 0) throw { status: 400, message: 'No valid data found' };
+
+        return formattedData;
     } catch (e) {
         throw (e);
     }
 }
 
-exports.importData = async (user, data, type, sensorType) => {
-    if (!data || !type || !sensorType) throw { status: 422, message: 'Missing parameters' };
+exports.importData = async (user, data, category, sensorType) => {
+    if (!data || !category || !sensorType) throw { status: 422, message: 'Missing parameters' };
     
     const importId = crypto.randomUUID();
-    const cacheKey = `${user._id}_${importId}:${type}_import_data:${sensorType}`;
+    const cacheKey = `${user._id}_${importId}:${category}_import_data:${sensorType}`;
 
     try {
-        const cleanedRows = parsedDataFile(data, type);
+        const cleanedRows = parsedDataFile(data, category);
 
-        const transformedData = type === 'history'
+        const transformedData = category === 'history'
             ? cleanedRows.filter(isValidHistoryRow)
             : cleanedRows.filter(isValidAnalyticsRow);
 
@@ -341,9 +333,10 @@ exports.importData = async (user, data, type, sensorType) => {
         setCache(cacheKey, transformedData);
         const preview = transformedData.slice(0, 20);
 
-        return { meta: {
+        return { 
+            meta: {
                 importId,
-                type,
+                category,
                 sensorType
             }, 
             preview,
