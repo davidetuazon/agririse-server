@@ -2,77 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const csvParse = require('csv-parse/sync');
 const mongoose = require('mongoose');
+ 
+const { HISTORY_HEADER_MAP, ANALYTICS_HEADER_MAP } = require('./constants');
 
-
-// CONSTANTS
-const SENSOR_META = {
-    damWaterLevel: { unit: '%', label: 'Dam Water Level' },
-    humidity: { unit: '%', label: 'Humidity' },
-    rainfall: { unit: 'mm', label: 'Effective Rainfall' },
-    temperature: { unit: '°C', label: 'Temperature' },
-}
-
-const DATA_TYPE = {
-    analytics: ['timestamp', 'total', 'avg', 'min', 'max', 'stdDev', 'count'],
-    history: ['recordedAt', 'value', '_id']
-}
-
-const HISTORY_HEADER_MAP = {
-    recordedAt: ['recordedat', 'date', 'timestamp', 'time'],
-    value: ['value', 'reading', 'level'],
-}
-
-const ANALYTICS_HEADER_MAP = {
-    timestamp: ['timestamp', 'time', 'date', 'bucket', 'buckets'],
-    total: ['total', 'sum'],
-    avg: ['avg', 'average'],
-    min: ['min', 'minimum'],
-    max: ['max', 'maximum'],
-    stdDev: ['stddev', 'std', 'dev', 'standard deviation'],
-    count: ['count', 'n', '#'],
-}
-
-
-// FUNCTIONS 
-const generateCSV = (data, columns) => {
-    if (!Array.isArray(data) || data.length === 0) return '';
-
-    const keys = columns ?? Object.keys(data[0]);
-
-    const escapeValue = (value) => {
-        if (value === null || value === undefined) return '';
-
-        if (value instanceof Date) {
-                value = value.toISOString();
-            }
-
-        if (typeof value === 'object') {
-            if (typeof value.toString === 'function' &&
-            value.toString !== Object.prototype.toString) {
-                    value = value.toString();
-            } else {
-                value = JSON.stringify(value);
-            }
-        }
-
-        value = String(value);
-        value = value.replace(/"/g,'""');
-
-        if (/[",\n\r]/.test(value)) {
-            value = `"${value}"`;
-        }
-
-        return value;
-    };
-
-    const header = keys.join(',');
-    const rows = data.map(row => 
-        keys.map(key => escapeValue(row[key])).join(',')
-    );
-
-    return [header, ...rows].join('\n');
-}
-
+// schema shaper for imported data
 const cleanedHistoryData = (row) => ({
     recordedAt: new Date(row.recordedAt),
     value: Number(row.value),
@@ -107,6 +40,7 @@ const normalizeHeaders = (row, headerMap) => {
     return normalized;
 }
 
+// data parser for imported data
 const parsedDataFile = (input, dataType) => {
     let rawRows = [];
 
@@ -141,6 +75,7 @@ const parsedDataFile = (input, dataType) => {
     return cleanedRows;
 };
 
+// validity check
 const isValidHistoryRow = (r) =>
     r.recordedAt instanceof Date && !isNaN(r.recordedAt) &&
     typeof r.value === 'number' && !isNaN(r.value);
@@ -151,10 +86,8 @@ const isValidAnalyticsRow = (r) =>
         k => typeof r[k] === 'number' && !isNaN(r[k])
     );
 
+
 module.exports = {
-    SENSOR_META,
-    DATA_TYPE,
-    generateCSV,
     parsedDataFile,
     isValidHistoryRow,
     isValidAnalyticsRow,

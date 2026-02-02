@@ -2,7 +2,10 @@ const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
 require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
-const { SENSOR_META, DATA_TYPE, generateCSV, parsedDataFile, isValidHistoryRow, isValidAnalyticsRow } = require('./iot.utils');
+const { SENSOR_META, DATA_TYPE } = require('./utils/constants');
+const { generateCSV } = require('./utils/dataExport.utils');
+const { parsedDataFile, isValidHistoryRow, isValidAnalyticsRow } = require('./utils/dataImport.utils');
+const {simpleLR, detectIntraBucketAnomalies, detectInterBucketAnomalies } = require('./utils/analytics.utils');
 const { setCache, getCache, clearCache, clearAllCache } = require('../../cache/redis-cache');
 const crypto = require('crypto');
 
@@ -223,6 +226,7 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate) => {
                     min: { $min: '$value' },
                     max: { $max: '$value' },
                     stdDev: { $stdDevSamp: '$value' },
+                    values: { $push: '$value' }, // keep raw values
                     count: { $sum: 1 },
                 }        
             },
@@ -235,6 +239,7 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate) => {
                     min: 1,
                     max: 1,
                     stdDev: 1,
+                    values: 1,
                     count: 1,
                     _id: 0,
                 }
@@ -242,18 +247,65 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate) => {
         ];
 
         const results = await IoTModel.aggregate(dataPipeline).exec();
+        if (!results || results.length === 0) throw { status: 404, message: 'No data available for this date range' };
 
         const unit = SENSOR_META[sensorType].unit;
-        const aggregatedResults = {
-            series: results.map(r => ({
+        const series = results.map(r => {
+            const values = r.values;
+            const sorted = [...values].sort((a,b) => a-b);
+            const mid = Math.floor(sorted.length / 2);
+
+            const median = sorted.length % 2 === 0
+                ? (sorted[mid - 1] + sorted[mid]) / 2
+                : sorted[mid];
+
+            const percentile25 = sorted[Math.floor(sorted.length * 0.25)];
+            const percentile75 = sorted[Math.floor(sorted.length * 0.75)];
+
+            return {
                 timestamp: r.bucket,
                 total: r.total,
                 avg: r.avg,
                 min: r.min,
                 max: r.max,
                 stdDev: r.stdDev,
+                variance: r.stdDev ** 2,
+                median,
+                percentile25,
+                percentile75,
                 count: r.count,
-            })),
+                anomalies: [],
+            }
+        });
+
+        series.forEach(bucket => {
+            const intraAnomalies = detectIntraBucketAnomalies(bucket, sensorType);
+            bucket.anomalies.push(...intraAnomalies);
+        });
+        detectInterBucketAnomalies(series, sensorType, granularity);
+        const trendMetrics = simpleLR(series, sensorType)
+        const anomalySummary = {
+            total: 0,
+            critical: 0,
+            warning: 0,
+            info: 0,
+            types: {},
+        };
+
+        series.forEach(bucket => {
+            if (bucket.anomalies && bucket.anomalies.length > 0) {
+                bucket.anomalies.forEach(anomaly => {
+                    anomalySummary.total++;
+                    anomalySummary[anomaly.severity]++;
+                    anomalySummary.types[anomaly.type] = (anomalySummary.types[anomaly.type] || 0) + 1;
+                });
+            }
+        });
+
+        const analytics = {
+            series,
+            trend: trendMetrics,
+            anomalies: anomalySummary,
             meta: {
                 dateRange: { startDate: fromDate, endDate: toDate },
                 granularity,
@@ -262,9 +314,9 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate) => {
                 metric: 'average',
             }
         };
-        setCache(cacheKey, aggregatedResults);
+        setCache(cacheKey, analytics);
 
-        return aggregatedResults;
+        return analytics;
     } catch (e) {
         throw (e);
     }
@@ -276,7 +328,7 @@ exports.exportData = async (localityId, category, sensorType, startDate, endDate
     
     const cacheKey = `${localityId}:${category}_${sensorType}:${startDate}_${endDate}`;
     const cached = getCache(cacheKey);
-    if (!cached) throw { status: 409, message: `No cached ${category} data available. Please load ${category} data first.` };
+    if (!cached || !cached.length === 0) throw { status: 409, message: `No cached ${category} data available. Please load ${category} data first.` };
 
     try {
         let data;
