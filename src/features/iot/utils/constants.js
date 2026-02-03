@@ -15,15 +15,8 @@ const HISTORY_HEADER_MAP = {
     value: ['value', 'reading', 'level'],
 }
 
-const ANALYTICS_HEADER_MAP = {
-    timestamp: ['timestamp', 'time', 'date', 'bucket', 'buckets'],
-    total: ['total', 'sum'],
-    avg: ['avg', 'average'],
-    min: ['min', 'minimum'],
-    max: ['max', 'maximum'],
-    stdDev: ['stddev', 'std', 'dev', 'standard deviation'],
-    count: ['count', 'n', '#'],
-}
+const MAX_IMPORT_SIZE = 1000;
+const MIN_DATA_POINTS = 3;
 
 // change these if we have data available
 const SENSOR_TREND_CONFIG = {
@@ -52,18 +45,19 @@ const SENSOR_TREND_CONFIG = {
 // change these if we have data available
 const SENSOR_ANOMALY_CONFIG = {
     damWaterLevel: {
-        // absoluteMin: 0,
-        // absoluteMax: 100,
-        // criticalLow: 20,
-        // criticalHigh: 95,
-        // stdDevThreshold: 3,
-        // suddenChangePercent: 15  // 15% change between buckets is suspicious
         absoluteMin: 0,
         absoluteMax: 100,
-        criticalLow: 79.5,  // ← Lower this temporarily
-        criticalHigh: 80.5,  // ← Lower this temporarily
-        stdDevThreshold: 2,  // ← More sensitive
-        suddenChangePercent: 0.05  // ← Very sensitive (0.05%)
+        criticalLow: 20,
+        criticalHigh: 95,
+        stdDevThreshold: 3,
+        suddenChangePercent: 15  // 15% change between buckets is suspicious
+        
+        // absoluteMin: 0,
+        // absoluteMax: 100,
+        // criticalLow: 79.5,  // ← Lower this temporarily
+        // criticalHigh: 80.5,  // ← Lower this temporarily
+        // stdDevThreshold: 2,  // ← More sensitive
+        // suddenChangePercent: 0.05  // ← Very sensitive (0.05%)
     },
     rainfall: {
         absoluteMin: 0,
@@ -96,7 +90,8 @@ module.exports = {
     SENSOR_META,
     DATA_TYPE,
     HISTORY_HEADER_MAP,
-    ANALYTICS_HEADER_MAP,
+    MIN_DATA_POINTS,
+    MAX_IMPORT_SIZE,
     SENSOR_TREND_CONFIG,
     SENSOR_ANOMALY_CONFIG,
 }

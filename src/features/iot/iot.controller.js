@@ -71,8 +71,8 @@ exports.generateExportData = async (req, res, next) => {
         const exportData = await IoTService.exportData(localityId, category, sensorType, startDate, endDate, format, true);
 
         res.status(200).json({
-            fileName: `${category}_${sensorType}_${startDate}_${endDate}.${ format === 'csv' ? 'csv' : 'json' }`,
-            data: exportData
+            fileName: `${exportData.fileName}.${ format === 'csv' ? 'csv' : 'json' }`,
+            data: exportData.data,
         });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
@@ -93,15 +93,15 @@ exports.saveExportData = async (req, res, next) => {
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader(
                 'Content-Disposition',
-                `attachment; filename=${category}_${sensorType}_${startDate}_${endDate}.csv`
+                `attachment; filename=${exportData.fileName}.csv`
             );
 
-            res.status(200).send(exportData);
+            res.status(200).send(exportData.data);
         } else {
             res.setHeader('Content-Type', 'application/json');
             res.setHeader(
                 'Content-Disposition',
-                `attachment; filename=${category}_${sensorType}_${startDate}_${endDate}.json`
+                `attachment; filename=${exportData.fileName}.json`
             );
         }
     } catch (e) {
@@ -111,12 +111,12 @@ exports.saveExportData = async (req, res, next) => {
 }
 
 exports.processImportData = async (req, res, next) => {
-    const { data, category, sensorType } = {...req.body};
-    const issues = validate({ data, category, sensorType }, constraints.importData);
+    const { data, sensorType } = {...req.body};
+    const issues = validate({ data, sensorType }, constraints.importData);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const importPreview = await IoTService.importData(req.user, data, category, sensorType);
+        const importPreview = await IoTService.importData(req.user, data, sensorType);
 
         res.status(200).json(importPreview);
     } catch (e) {
@@ -126,16 +126,15 @@ exports.processImportData = async (req, res, next) => {
 }
 
 exports.saveImportData = async (req, res, next) => {
-    const { importId, type, sensorType } = {...req.body};
-    const issues = validate({ importId, type, sensorType }, {
+    const { importId, sensorType } = {...req.body};
+    const issues = validate({ importId, sensorType }, {
         importId: { presence: true },
-        type: { presence: true },
         sensorType: { presence: true },
     });
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const data = await IoTService.saveImport(importId, req.user, type, sensorType);
+        const data = await IoTService.saveImport(importId, req.user, sensorType);
 
         res.status(200).json(data);
     } catch (e) {

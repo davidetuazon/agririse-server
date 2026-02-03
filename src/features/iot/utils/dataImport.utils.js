@@ -3,23 +3,20 @@ const path = require('path');
 const csvParse = require('csv-parse/sync');
 const mongoose = require('mongoose');
  
-const { HISTORY_HEADER_MAP, ANALYTICS_HEADER_MAP } = require('./constants');
+const { HISTORY_HEADER_MAP, MAX_IMPORT_SIZE } = require('./constants');
+
+const isValidIsoDate = (value) => {
+    return typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(value) &&
+        !isNaN(new Date(value));
+}
 
 // schema shaper for imported data
-const cleanedHistoryData = (row) => ({
-    recordedAt: new Date(row.recordedAt),
+const cleanedHistoryData = (row, localityId) => ({
+    recordedAt: isValidIsoDate(row.recordedAt) ? new Date(row.recordedAt) : row.recordedAt,
     value: Number(row.value),
     _id: new mongoose.Types.ObjectId(),
-});
-
-const cleanedAnalyticsData = (row) => ({
-    timestamp: new Date(row.timestamp),
-    total: Number(row.total),
-    avg: Number(row.avg),
-    min: Number(row.min),
-    max: Number(row.max),
-    stdDev: Number(row.stdDev),
-    count: Number(row.count)
+    localityId,
 });
 
 // helper for imported data headers
@@ -41,7 +38,7 @@ const normalizeHeaders = (row, headerMap) => {
 }
 
 // data parser for imported data
-const parsedDataFile = (input, dataType) => {
+const parsedDataFile = (input, localityId) => {
     let rawRows = [];
 
     // Check if input is an array (from JSON body)
@@ -64,31 +61,21 @@ const parsedDataFile = (input, dataType) => {
             throw new Error('Unsupported file type');
         }
     }
-
-    const headerMap = dataType === 'history' ? HISTORY_HEADER_MAP : ANALYTICS_HEADER_MAP;
-    const normalizedRows = rawRows.map(row => normalizeHeaders(row, headerMap));
-
-    const cleanedRows = normalizedRows.map(row =>
-        dataType === 'history' ? cleanedHistoryData(row) : cleanedAnalyticsData(row)
-    );
+    const normalizedRows = rawRows.map(row => normalizeHeaders(row, HISTORY_HEADER_MAP));
+    const cleanedRows = normalizedRows.map(row =>cleanedHistoryData(row, localityId));
+    if (cleanedRows.length > MAX_IMPORT_SIZE) throw { status: 400, message: `Import size exceeds limit. Maximum of ${MAX_IMPORT_SIZE} rows allowed, recieved ${cleanedRows.length} rows.` };
 
     return cleanedRows;
 };
 
 // validity check
 const isValidHistoryRow = (r) =>
-    r.recordedAt instanceof Date && !isNaN(r.recordedAt) &&
-    typeof r.value === 'number' && !isNaN(r.value);
-
-const isValidAnalyticsRow = (r) =>
-    r.timestamp instanceof Date && !isNaN(r.timestamp) &&
-    ['total', 'avg', 'min', 'max', 'count'].every(
-        k => typeof r[k] === 'number' && !isNaN(r[k])
-    );
+    r.recordedAt instanceof Date &&
+    !Number.isNaN(r.recordedAt.getTime()) &&
+    Number.isFinite(r.value);
 
 
 module.exports = {
     parsedDataFile,
     isValidHistoryRow,
-    isValidAnalyticsRow,
 }

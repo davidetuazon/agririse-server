@@ -323,86 +323,118 @@ exports.getAnalytics = async (localityId, sensorType, startDate, endDate) => {
 }
 
 // export service rely on cached history and analytics snaps to hydrate export data
-exports.exportData = async (localityId, category, sensorType, startDate, endDate, format, preview = false, previewLimit = 50) => {
+exports.exportData = async (localityId, category, sensorType, startDate, endDate, format = 'json', preview = false, previewLimit = 50) => {
     if (!sensorType || !startDate || !endDate || !category) throw { status: 422, message: 'Missing query parameters' };
     
     const cacheKey = `${localityId}:${category}_${sensorType}:${startDate}_${endDate}`;
     const cached = getCache(cacheKey);
-    if (!cached || !cached.length === 0) throw { status: 409, message: `No cached ${category} data available. Please load ${category} data first.` };
+    if (!cached || cached.length === 0) throw { status: 409, message: `No cached ${category} data available. Please load ${category} data first.` };
 
     try {
+        let fileName;
         let data;
+
+        if (category === 'analytics' && format === 'csv') throw { status: 400, message: 'Analytics export only supports JSON format' };
 
         // for analytics data
         if (category === 'analytics') {
-            data = cached.series;
+            fileName = `${cached.meta.granularity}_${cached.meta.metric}_${sensorType}${cached.meta.unit}_${category}_${startDate}_${endDate}`
+            data = {
+                series: cached.series,
+                trends: cached.trend,
+                anomalies: cached.anomalies,
+            }
+            if (!data.series || data.series.length === 0) throw { status: 404, message: 'No available data for date range' };
 
-            if (preview) data = data.slice(0, previewLimit);
+            if (preview) data.series = data.series.slice(0, previewLimit);
+            
         // for history data
         } else {
+            fileName = `${sensorType}_${category}_${startDate}_${endDate}`;
             data = await IoTModel.find(
                 { _id: { $in: cached.snaps.map(d => d._id) } },
                 { value: 1, recordedAt: 1 },
             ).lean();
+            
+            if (!data || data.length === 0) throw { status: 404, message: 'No available data for date range' };
 
             const order = new Map(cached.snaps.map((d, i) => [d._id.toString(), i]));
             data.sort((a, b) => order.get(a._id.toString()) - order.get(b._id.toString()));
-
+            
+            // preview in json format
             if (preview) data = data.slice(0, previewLimit);
+
+            const csv = generateCSV(data, DATA_TYPE[category]);
+            data = format === 'csv' ? csv.replace(/\n/g, '\r\n') : data;
         }
 
-        // return headers only when no data
-        if (!data || data.length === 0) return DATA_TYPE[category].join(',');
-
-        const csv = generateCSV(data, DATA_TYPE[category]);
-
-        const formattedData = format === 'csv' 
-            ? csv.replace(/\n/g, '\r\n')
-            : data;
-        if (!formattedData || formattedData.length === 0) throw { status: 400, message: 'No valid data found' };
-
-        return formattedData;
+        return {
+            data,
+            fileName,
+        }
     } catch (e) {
         throw (e);
     }
 }
 
-exports.importData = async (user, data, category, sensorType) => {
-    if (!data || !category || !sensorType) throw { status: 422, message: 'Missing parameters' };
-    
+exports.importData = async (user, data, sensorType) => {
+    if (!data || !sensorType) throw { status: 422, message: 'Missing parameters' };
+
     const importId = crypto.randomUUID();
-    const cacheKey = `${user._id}_${importId}:${category}_import_data:${sensorType}`;
+    const cacheKey = `${user._id}_${importId}:import_data:${sensorType}`;
 
     try {
-        const cleanedRows = parsedDataFile(data, category);
+        const valid = [];
+        const invalid = [];
+        
+        const cleanedRows = parsedDataFile(data, user.localityId);
 
-        const transformedData = category === 'history'
-            ? cleanedRows.filter(isValidHistoryRow)
-            : cleanedRows.filter(isValidAnalyticsRow);
+        cleanedRows.forEach((row, index) => {
+            if (isValidHistoryRow(row)) {
+                valid.push(row);
+            } else {
+                invalid.push({ data: row, index, reason: 'invalid timestamp or value' });
+            }
+        });
+        if (valid.length === 0) throw { status: 400, message: 'No valid rows found' };
 
-        if (!transformedData.length) throw { status: 400, message: 'No valid rows found' };
+        const timestamps = valid.map(v => v.recordedAt);
 
-        setCache(cacheKey, transformedData);
-        const preview = transformedData.slice(0, 20);
+        const existing = await IoTModel.find({
+            localityId: user.localityId,
+            sensorType,
+            recordedAt: { $in: timestamps }
+        }, { recordedAt: 1 }).lean();
+
+        const existingTimestamps = new Set(
+            existing.map(e => e.recordedAt.getTime())
+        );
+
+        const newRows = valid.filter(r => !existingTimestamps.has(r.recordedAt.getTime()));
+        const duplicateCount = valid.length - newRows.length;
+
+        setCache(cacheKey, newRows);
 
         return { 
             meta: {
                 importId,
-                category,
                 sensorType
             }, 
-            preview,
-            total: transformedData.length
+            validRowsPreview: newRows.slice(0, 25),
+            validRowsTotal: newRows.length,
+            duplicates: duplicateCount,
+            invalidRows: invalid.length,
+            invalidRowsPreview: invalid.slice(0, 15)
         }
     } catch (e) {
         throw (e);
     }
 }
 
-exports.saveImport = async (importId, user, type, sensorType) => {
-    if (!importId || !type || !sensorType) throw { status: 422, message: 'Missing parameters' };
+exports.saveImport = async (importId, user, sensorType) => {
+    if (!importId || !sensorType) throw { status: 422, message: 'Missing parameters' };
 
-    const cacheKey = `${user._id}_${importId}:${type}_import_data:${sensorType}`;
+    const cacheKey = `${user._id}_${importId}:import_data:${sensorType}`;
     const cached = getCache(cacheKey);
 
     try {

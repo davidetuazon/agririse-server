@@ -1,9 +1,9 @@
-const { SENSOR_TREND_CONFIG, SENSOR_ANOMALY_CONFIG} = require('./constants');
+const { SENSOR_TREND_CONFIG, SENSOR_ANOMALY_CONFIG, MIN_DATA_POINTS } = require('./constants');
 
 // simple trend analysis
 const simpleLR = (series, sensorType) => {
     // require at least 3 data buckets for more meaningful calculations
-    const MIN_DATA_POINTS = 2;
+    
 
     if (series.length < MIN_DATA_POINTS) return { 
             direction: 'insufficient data', 

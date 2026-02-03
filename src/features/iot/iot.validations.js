@@ -58,13 +58,6 @@ const importData = {
             message: 'of: %{value} - has no readings or is not yet deployed.'
         }
     },
-    category: {
-        presence: { allowEmpty: false, message: 'is required.' },
-        inclusion: {
-            within: ALLOWED_TYPES,
-            message: 'of: %{value} - is not a valid data type.'
-        }
-    },
 }
 
 module.exports = {
