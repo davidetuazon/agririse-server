@@ -25,7 +25,7 @@ const userSchema = new Schema(
             required: true,
         },
         localityId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Locality',
             required: true,
         },

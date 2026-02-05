@@ -21,7 +21,7 @@ const localitySchema = new Schema(
             required: true,
         },
         canals: [{
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Canal'
         }],
         totalServiceAreaHA: {
@@ -36,6 +36,10 @@ const localitySchema = new Schema(
         },
     }, { timestamps: true }
 );
+localitySchema.index({
+    province: 1,
+    city: 1,
+}, { unique: true });
 
 localitySchema.plugin(mongoosePaginate);
 module.exports = mongoose.model('Locality', localitySchema);

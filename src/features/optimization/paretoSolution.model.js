@@ -9,7 +9,7 @@ const allocationUnitSchema = new Schema(
             default: false,
         },
         _id: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             required: true,
         },
         mainLateralId: {
@@ -60,7 +60,7 @@ const objectiveValuesSchema = new Schema(
 const paretoSolutionSchema = new Schema(
     {
         runId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'OptimizationRun',
             required: true,
         },

@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const IoTModel = require('./iot.model');
 require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
@@ -56,28 +55,51 @@ exports.getLatestReadings = async (user) => {
 
     try {
         const queries = sensorTypes.map(type =>
-            IoTModel.findOne({ localityId: user.localityId, sensorType: type })
+            IoTModel.find({ localityId: user.localityId, sensorType: type })
             .sort({ recordedAt: -1 })
+            .limit(2) // get latest 2 readings
             .populate({ path: 'localityId', select: 'city province region' })
         )
-        const docs = await Promise.all(queries);
-        if (!docs) throw { status: 404, message: 'Displayed data is up to date' };
+        const docsArray = await Promise.all(queries);
+        if (!docsArray) throw { status: 404, message: 'Displayed data is up to date' };
         
         const results = {};
         let locality = null;
 
-        docs.forEach(doc => {
-            if (!doc) return;
+        docsArray.forEach(docs => {
+            if (!docs || docs.length === 0) return;
 
-            if (!locality && doc.localityId) {
-                locality = doc.localityId;
+            const latest = docs[0];
+            const previous = docs[1];
+
+            if (!locality && latest.localityId) {
+                locality = latest.localityId;
             }
 
-            results[doc.sensorType] = {
-                value: doc.value,
-                unit: doc.unit,
-                recordedAt: doc.recordedAt,
-                sensorType: SENSOR_META[doc.sensorType].label,
+            let delta = null;
+            let percentChange = null;
+
+            if (previous) {
+                delta = parseFloat((latest.value - previous.value).toFixed(2));
+
+                // avoid division by zero
+                if (previous.value !== 0) {
+                    percentChange = parseFloat(((delta / previous.value) * 100).toFixed(2));
+                }
+            }
+
+            const timeDifferenceMinutes = previous ? (new Date(latest.recordedAt) - new Date(previous.recordedAt)) / 1000 / 60 : null;
+
+            results[latest.sensorType] = {
+                value: latest.value,
+                unit: latest.unit,
+                recordedAt: latest.recordedAt,
+                sensorType: SENSOR_META[latest.sensorType].label,
+                delta, // actual difference between latest and previous value
+                percentChange,
+                previousValue: previous ? previous.value : null,
+                previousRecordedAt: previous ? previous.recordedAt : null,
+                timeDifferenceMinutes,
             };
         });
 

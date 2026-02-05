@@ -5,7 +5,7 @@ const Schema = mongoose.Schema;
 const canalInputSchema = new Schema(
     {
         _id: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             required: true,
         },
         mainLateralId: {
@@ -60,7 +60,7 @@ const inputSnapshotSchema = new Schema(
         },
         readings: {
             type: Map,
-            of: Schema.Types.Mixed,
+            of: mongoose.Schema.Types.Mixed,
         },
         canalInput: [canalInputSchema],
     }, { _id: false }
@@ -73,13 +73,13 @@ const optimizationRunSchema = new Schema(
             default: false,
         },
         localityId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Locality',
             required: true,
         },
         triggeredBy: {
             _id: {
-                type: mongoose.Types.ObjectId,
+                type: mongoose.Schema.Types.ObjectId,
                 required: true,
             },
             name: {
