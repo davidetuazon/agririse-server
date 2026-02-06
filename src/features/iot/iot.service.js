@@ -3,8 +3,9 @@ require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
 const { SENSOR_META, DATA_TYPE } = require('./utils/constants');
 const { generateCSV } = require('./utils/dataExport.utils');
-const { parsedDataFile, isValidHistoryRow, isValidAnalyticsRow } = require('./utils/dataImport.utils');
+const { parsedDataFile, isValidHistoryRow } = require('./utils/dataImport.utils');
 const {simpleLR, detectIntraBucketAnomalies, detectInterBucketAnomalies } = require('./utils/analytics.utils');
+const { validateData, checkCriticalThreshold, checkSuddenChange } = require('./utils/alerts.utils');
 const { setCache, getCache, clearCache, clearAllCache } = require('../../cache/redis-cache');
 const crypto = require('crypto');
 
@@ -45,6 +46,88 @@ exports.generateMockReadings = async (localityId) => {
 }
 
 
+
+exports.insertReadings = async (localityId, readings) => {
+    if (!readings || readings.length === 0) throw { status: 400, message: 'Sensor reading is empty' };
+
+    try {
+        const results = [];
+        const errors = [];
+
+        for (const data of readings) {
+            try {
+                const duplicate = await IoTModel.findOne({
+                    localityId,
+                    sensorType: data.sensorType,
+                    recordedAt: data.recordedAt,
+                });
+
+                if (duplicate) {
+                    errors.push({
+                        sensorType: data.sensorType,
+                        error: 'Reading already exist for this timestamp'
+                    });
+                    continue;
+                }
+                
+                const validateResults = validateData(data.value, data.sensorType);
+                if (!validateResults.valid) {
+                    errors.push({
+                        sensorType: data.sensorType,
+                        error: validateResults.reason
+                    });
+                    continue;
+                }
+
+                const reading = await IoTModel.create({
+                    localityId,
+                    sensorType: data.sensorType,
+                    value: data.value,
+                    unit: data.unit,
+                    recordedAt: data.recordedAt || new Date(),
+                });
+
+                const alerts = await checkCriticalThreshold(reading);
+                const suddenChangeAlert = await checkSuddenChange(reading);
+                if (suddenChangeAlert) {
+                    alerts.push(suddenChangeAlert);
+                }
+
+                results.push({
+                    reading,
+                    alerts: alerts.length > 0 ? alerts : null,
+                })
+            } catch (err) {
+                errors.push({
+                    sensorType: data.sensorType,
+                    error: err.message || 'Failed to process reading'
+                })
+            }
+        } 
+        
+        return {
+            success: results.length > 0,
+            inserted: results.length,
+            failed: errors.length,
+            results,
+            errors: errors.length > 0 ? errors : null,
+        }
+    } catch (e) {
+        throw (e);
+    }
+}
+
+// wrapper
+exports.insertReading = async (localityId, data) => {
+    const result = await exports.insertReadings(localityId, [data]);
+    
+    if (result.failed > 0) {
+        throw { status: 400, message: result.errors[0].error };
+    }
+    
+    return result.results[0];
+}
+
 exports.getLatestReadings = async (user) => {
     const sensorTypes = [
         'rainfall',
@@ -80,7 +163,7 @@ exports.getLatestReadings = async (user) => {
             let percentChange = null;
 
             if (previous) {
-                delta = parseFloat((latest.value - previous.value).toFixed(2));
+                delta = Math.abs(parseFloat((latest.value - previous.value).toFixed(2)));
 
                 // avoid division by zero
                 if (previous.value !== 0) {

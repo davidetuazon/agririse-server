@@ -16,6 +16,37 @@ exports.generateMockData = async (req, res, next) => {
     }
 }
 
+exports.insertReadings = async (req, res, next) => {
+    const data = {...req.body};
+    const localityId = req.user.localityId; // use user for now but attach locality id on request
+    const readings = Array.isArray(data) ? data : [data];
+
+    const validationErrors = [];
+    readings.forEach((reading) => {
+        const issues = validate(reading, constraints.createReadings);
+        if (issues) validationErrors.push(issues);
+    });
+    if (validationErrors.length > 0) return res.status(422).json({ error: validationErrors });
+
+    try {
+        const result = await IoTService.insertReadings(localityId, readings);
+        const allAlerts = result.results.filter(r => r.alerts).flatMap(r => r.alerts);
+        
+        const data = {
+            inserted: result.inserted,
+            failed: result.failed,
+            readings: result.results.map(r => r.reading),
+            alerts: allAlerts.length > 0 ? allAlerts : null,
+            errors: result.errors,
+        }
+
+        res.status(200).json(data)
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
 exports.getLatestData = async (req, res, next) => {
     try {
         const data = await IoTService.getLatestReadings(req.user);

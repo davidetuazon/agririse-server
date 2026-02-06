@@ -4,6 +4,10 @@ const router = express.Router();
 const iotController = require('./iot.controller');
 const utils = require('../../shared/helpers/utils');
 
+// assume data streams come as post call
+// use user for locality id for now
+router.post('/readings', utils.authenticate, iotController.insertReadings);
+
 router.get('/latest', utils.authenticate, iotController.getLatestData);
 
 router.get('/history', utils.authenticate, iotController.getHistoricalData);
