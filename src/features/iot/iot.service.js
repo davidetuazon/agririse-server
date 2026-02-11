@@ -488,22 +488,14 @@ exports.importData = async (user, data, sensorType) => {
     const importId = crypto.randomUUID();
     const cacheKey = `${user._id}_${importId}:import_data:${sensorType}`;
 
-    try {
-        const valid = [];
-        const invalid = [];
-        
-        const cleanedRows = parsedDataFile(data, user.localityId);
+    try {       
+        const parseResult = parsedDataFile(data, user.localityId, sensorType);
+        const { data: cleanedRows, stats } = parseResult;
 
-        cleanedRows.forEach((row, index) => {
-            if (isValidHistoryRow(row)) {
-                valid.push(row);
-            } else {
-                invalid.push({ data: row, index, reason: 'invalid timestamp or value' });
-            }
-        });
-        if (valid.length === 0) throw { status: 400, message: 'No valid rows found' };
+        if (cleanedRows.length === 0) throw { status: 400, message: 'No valid rows found' };
 
-        const timestamps = valid.map(v => v.recordedAt);
+        // check for duplicates in database
+        const timestamps = cleanedRows.map(row => row.recordedAt);
 
         const existing = await IoTModel.find({
             localityId: user.localityId,
@@ -515,21 +507,34 @@ exports.importData = async (user, data, sensorType) => {
             existing.map(e => e.recordedAt.getTime())
         );
 
-        const newRows = valid.filter(r => !existingTimestamps.has(r.recordedAt.getTime()));
-        const duplicateCount = valid.length - newRows.length;
+        const newRows = cleanedRows.filter(row => !existingTimestamps.has(row.recordedAt.getTime()));
+        const duplicateCount = cleanedRows.length - newRows.length;
 
-        setCache(cacheKey, newRows);
+        if (newRows.length === 0) throw { status: 400, message: 'All valid rows are duplicates', stats: { ...stats, duplicates: duplicateCount } };
+
+        const rowsToImport = newRows.map(row => ({
+            ...row,
+            sensorType,
+        }));
+
+        setCache(cacheKey, rowsToImport);
 
         return { 
             meta: {
                 importId,
                 sensorType
-            }, 
-            validRowsPreview: newRows.slice(0, 25),
-            validRowsTotal: newRows.length,
-            duplicates: duplicateCount,
-            invalidRows: invalid.length,
-            invalidRowsPreview: invalid.slice(0, 15)
+            },
+             summary: {
+                totalRows: stats.total,
+                validRows: stats.valid,
+                invalidRows: stats.failed,
+                duplicates: duplicateCount,
+                readyToImport: rowsToImport.length
+            },
+            preview: {
+                validRows: rowsToImport.slice(0, 25),
+                invalidRows: stats.errors || []  // already limited to 10 in parsedDataFile
+            }
         }
     } catch (e) {
         throw (e);
@@ -540,13 +545,20 @@ exports.saveImport = async (importId, user, sensorType) => {
     if (!importId || !sensorType) throw { status: 422, message: 'Missing parameters' };
 
     const cacheKey = `${user._id}_${importId}:import_data:${sensorType}`;
-    const cached = getCache(cacheKey);
-
     try {
-        if (!cached || !cached.length) throw { status: 404, message: 'No import data found' };
+        const cached = getCache(cacheKey);
+        if (!cached || !cached.length) throw { status: 404, message: 'No matching import data found' };
 
-        await IoTModel.insertMany(cached);
+
+        const result = await IoTModel.insertMany(cached);
         clearCache(cacheKey);
+
+        return {
+            success: true,
+            imported: result.length,
+            sensorType,
+            message: `Successfully imported ${result.length} ${SENSOR_META[sensorType].label} readings`
+        };
     } catch (e) {
         throw (e);
     }

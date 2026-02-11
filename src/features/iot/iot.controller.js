@@ -143,7 +143,17 @@ exports.saveExportData = async (req, res, next) => {
 
 exports.processImportData = async (req, res, next) => {
     const { data, sensorType } = {...req.body};
-    const issues = validate({ data, sensorType }, constraints.importData);
+    
+    let validationSchema;
+    if (typeof data === 'string') {
+        validationSchema = constraints.importDataFile;
+    } else if (Array.isArray(data)) {
+        validationSchema = constraints.importDataJson;
+    } else {
+        return res.status(400).json({ message: 'Must be either a file path or an array of records' });
+    }
+
+    const issues = validate({ data, sensorType }, validationSchema);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
@@ -158,10 +168,7 @@ exports.processImportData = async (req, res, next) => {
 
 exports.saveImportData = async (req, res, next) => {
     const { importId, sensorType } = {...req.body};
-    const issues = validate({ importId, sensorType }, {
-        importId: { presence: true },
-        sensorType: { presence: true },
-    });
+    const issues = validate({ importId, sensorType }, constraints.saveData);
     if (issues) return res.status(422).json({ error: issues });
 
     try {
