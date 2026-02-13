@@ -31,7 +31,7 @@ const sensorReadingSchema = new Schema(
         },
         source: {
             type: String,
-            enum: ['mock', 'iot'],
+            enum: ['mock', 'iot', 'import', 'forecast'],
             default: 'mock',
         },
     }, { timestamps: true }

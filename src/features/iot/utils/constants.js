@@ -51,13 +51,6 @@ const SENSOR_ANOMALY_CONFIG = {
         criticalHigh: 95,
         stdDevThreshold: 3,
         suddenChangePercent: 15  // 15% change between buckets is suspicious
-        
-        // absoluteMin: 0,
-        // absoluteMax: 100,
-        // criticalLow: 79.5,  // ← Lower this temporarily
-        // criticalHigh: 80.5,  // ← Lower this temporarily
-        // stdDevThreshold: 2,  // ← More sensitive
-        // suddenChangePercent: 0.05  // ← Very sensitive (0.05%)
     },
     rainfall: {
         absoluteMin: 0,

@@ -43,7 +43,7 @@ const checkCriticalThreshold = async (reading) => {
         alerts.push(alert);
     }
 
-    if (reading.value <= config.criticalLow) {
+    if (config.criticalLow !== null && reading.value <= config.criticalLow) {
         const alert = await AlertModel.create({
             localityId: reading.localityId,
             sensorType: reading.sensorType,

@@ -3,7 +3,7 @@ require('../locality/locality.model');
 const mockSensorReadings = require('../../shared/services/mockSensorReadings');
 const { SENSOR_META, DATA_TYPE } = require('./utils/constants');
 const { generateCSV } = require('./utils/dataExport.utils');
-const { parsedDataFile, isValidHistoryRow } = require('./utils/dataImport.utils');
+const { parsedDataFile } = require('./utils/dataImport.utils');
 const {simpleLR, detectIntraBucketAnomalies, detectInterBucketAnomalies } = require('./utils/analytics.utils');
 const { validateData, checkCriticalThreshold, checkSuddenChange } = require('./utils/alerts.utils');
 const { setCache, getCache, clearCache, clearAllCache } = require('../../cache/redis-cache');

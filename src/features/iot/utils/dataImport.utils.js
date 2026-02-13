@@ -34,6 +34,7 @@ const cleanedHistoryData = (row, localityId, sensorType) => {
     return {
         recordedAt,
         value,
+        source: 'import',
         unit: SENSOR_META[sensorType].unit,
         _id: new mongoose.Types.ObjectId(),
         localityId,
