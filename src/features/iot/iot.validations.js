@@ -4,10 +4,6 @@ const ALLOWED_TYPES = ['analytics', 'history'];
 const createReadings = {
     sensorType: {
         presence: { allowEmpty: false, message: 'is required.' },
-        inclusion: {
-            within: ALLOWED_SENSOR_TYPES,
-            message: 'of: %{value} - has no readings or is not yet deployed.'
-        }
     },
     value: {
         presence: { allowEmpty: false, message: 'is required.' },
@@ -15,11 +11,7 @@ const createReadings = {
             onlyInteger: false, 
             strict: true,
             message: 'must be a number.' 
-        }, 
-    },
-    unit: {
-        presence: { allowEmpty: false, message: 'is required.' },
-        type: 'string',
+        },
     },
     recordedAt: {
         presence: { allowEmpty: false, message: 'is required.' },

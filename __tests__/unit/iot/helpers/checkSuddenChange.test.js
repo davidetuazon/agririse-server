@@ -33,7 +33,7 @@ const mockAlert = {
 
 describe('IoT Helper/Util - checkSuddenChange', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        jest.clearAllMocks();
     });
 
     it('should return null for unknown sensor type', async () => {

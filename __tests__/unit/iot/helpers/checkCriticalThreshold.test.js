@@ -42,7 +42,7 @@ const mockCriticalLowAlert = {
 
 describe('IoT Helper/Util - checkCriticalThreshold', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        jest.clearAllMocks();
     });
 
     it('should return an empty array for unknown sensor type', async () => {

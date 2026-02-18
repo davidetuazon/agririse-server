@@ -12,7 +12,7 @@ const mockUser = {
 
 describe('User Service - changePassword', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        jest.clearAllMocks();
     });
 
     it('should throw 422 when missing request body', async () => {

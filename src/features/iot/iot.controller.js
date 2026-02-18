@@ -17,9 +17,8 @@ exports.generateMockData = async (req, res, next) => {
 }
 
 exports.insertReadings = async (req, res, next) => {
-    const data = {...req.body};
     const localityId = req.user.localityId; // use user for now but attach locality id on request
-    const readings = Array.isArray(data) ? data : [data];
+    const readings = Array.isArray(req.body) ? req.body : [req.body];
 
     const validationErrors = [];
     readings.forEach((reading) => {

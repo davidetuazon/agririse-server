@@ -28,7 +28,7 @@ const basicAggregation = (canals) => {
             totalServiceAreaHa,
             totalNetWaterDemandM3,
             totalSeepageM3,
-            totalCanalDistanceKm,
+            totalCanalLengthKm: totalCanalDistanceKm,
             systemLevelLossFactorPercentage,
             avgCanalLossFactorPercentage,
             avgSeepPerKm,

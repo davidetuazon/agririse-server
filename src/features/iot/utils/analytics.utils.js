@@ -1,4 +1,4 @@
-const { SENSOR_TREND_CONFIG, SENSOR_ANOMALY_CONFIG, MIN_DATA_POINTS } = require('./constants');
+const { SENSOR_META, SENSOR_TREND_CONFIG, SENSOR_ANOMALY_CONFIG, MIN_DATA_POINTS } = require('./constants');
 
 // simple trend analysis
 const simpleLR = (series, sensorType) => {
@@ -85,7 +85,7 @@ const simpleLR = (series, sensorType) => {
             alert: {
                 type: 'critical_change_rate',
                 severity: 'warning',
-                message: `${sensorType} changing at ${Math.abs(slope).toFixed(2)} ${config.unit}/day (critical threshold: ${criticalThreshold.toFixed(2)})`
+                message: `${SENSOR_META[sensorType].label} changing at ${Math.abs(slope).toFixed(2)} ${config.unit}/day (critical threshold: ${criticalThreshold.toFixed(2)})`
             }
         })
     };
@@ -193,20 +193,18 @@ const detectInterBucketAnomalies = (series, sensorType, granularity) => {
         const prev = series[i - 1];
         const curr = series[i];
 
-        if (!curr.anomalies) {
-            curr.anomalies = [];
-        }
-
         // check sudden change in values
         const percentChange = Math.abs((curr.avg - prev.avg) / prev.avg) * 100;
         if (percentChange > config.suddenChangePercent) {
-            curr.anomalies.push({
+            const anomaly = {
                 type: 'sudden_change',
                 severity: 'warning',
                 value: percentChange,
                 threshold: config.suddenChangePercent,
                 message: `${percentChange.toFixed(1)}% change from previous period (${prev.avg.toFixed(2)} → ${curr.avg.toFixed(2)})`
-            })
+            }
+            if (!curr.anomalies) curr.anomalies = [];
+            curr.anomalies.push(anomaly);
         };
 
         // check for missing data gaps
@@ -243,12 +241,14 @@ const detectInterBucketAnomalies = (series, sensorType, granularity) => {
                 gapUnit = 'day';
             }
             
-            curr.anomalies.push({
+            const anomaly = {
                 type: 'data_gap',
                 severity: 'info',
                 value: gapValue,
                 message: `${gapValue} ${gapUnit}${gapValue > 1 ? 's' : ''} gap in data - readings may be incomplete`
-            });
+            };
+            if (!curr.anomalies) curr.anomalies = [];
+            curr.anomalies.push(anomaly);
         }
         
         // check for flatlines (stuck sensor)
@@ -256,12 +256,14 @@ const detectInterBucketAnomalies = (series, sensorType, granularity) => {
             curr.stdDev < 0.01 && 
             prev.stdDev < 0.01 &&
             curr.count > 5 && prev.count > 5) {
-            curr.anomalies.push({
+            const anomaly = {
                 type: 'potential_flatline',
                 severity: 'warning',
                 value: curr.avg,
                 message: `Sensor reading unchanged (${curr.avg.toFixed(2)}) - possible sensor malfunction`
-            });
+            };
+            if (!curr.anomalies) curr.anomalies = [];
+            curr.anomalies.push(anomaly);
         }
     }
     return series;
