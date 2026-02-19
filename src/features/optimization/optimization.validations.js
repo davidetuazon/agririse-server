@@ -1,5 +1,5 @@
 
-const optimization = {
+const optimizationInput = {
     totalSeasonalWaterSupplyM3: {
         presence: { allowEmpty: false, message: 'is required.' },
         numericality: {
@@ -18,5 +18,5 @@ const optimization = {
 }
 
 module.exports = {
-    optimization,
+    optimizationInput,
 }

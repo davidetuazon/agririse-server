@@ -95,7 +95,7 @@ const optimizationRunSchema = new Schema(
         inputSnapshot: inputSnapshotSchema,
         status: {
             type: String,
-            enum: ['pending', 'completed', 'failed'],
+            enum: ['pending', 'accepted', 'completed', 'failed'],
             default: 'pending'
         },
     }, { timestamps: true }

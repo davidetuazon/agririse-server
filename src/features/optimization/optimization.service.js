@@ -4,7 +4,7 @@ const CanalModel = require('../../features/canal/canal.model');
 const IoTService = require('../iot/iot.service');
 const { GAInputProcessing } = require('./optimization.utils');
 
-exports.preProcessOptimizationInputs = async (user, params) => {
+exports.prepareRunInput = async (user, params) => {
     if (!params) throw { status: 400, message: 'Missing administrator level inputs' };
     const { totalSeasonalWaterSupplyM3, scenario } = params;
 
@@ -43,7 +43,7 @@ exports.preProcessOptimizationInputs = async (user, params) => {
 
 // improve by:
 // can do better error handling
-exports.processOptimizationRun = async (user, optimizationInput) => {
+exports.initiateRun = async (user, optimizationInput) => {
     if (!optimizationInput) throw { status: 400, message: 'Missing request body' };
 
     try {
@@ -67,42 +67,47 @@ exports.processOptimizationRun = async (user, optimizationInput) => {
         });
         if (!optimizationDoc) throw { status: 400, message: 'Failed to generate optimization run.' };
 
-
         // Python Service Contract
         const cleanedGAInputs = GAInputProcessing(latest.readings, optimizationInput);
-        // call GA service
-        const response = await fetch(process.env.GA_SERVICE_URL, {
+
+        // call GA service - fire and forget
+        fetch(process.env.GA_SERVICE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cleanedGAInputs)
+            body: JSON.stringify({
+                ...cleanedGAInputs,
+                runId: optimizationDoc._id.toString() // pass runId to service for context
+            })
         });
-        const output = await response.json();
 
-        // ParetoSolution Documentation and Optimization Input Document Updates
-        const updatedOptimizationDoc = await OptimizationRunModel.findByIdAndUpdate(
-            optimizationDoc._id,
-            {status: output.status}, // update status once request is completed
-            { new: true }
-        );
+        return optimizationDoc;
+    } catch (e) {
+        throw(e);
+    }
+}
 
-        if (!Array.isArray(output.paretoSolutions) || output.paretoSolutions.length === 0) {
-            throw { status: 400, message: 'Service returned no solutions' };
-        }
-         // create pareto solution docs
+exports.recieveAndProcessRunCallback = async (result) => {
+    if (!result) throw { status: 400, message: 'Missing request body' };
+    if (!Array.isArray(result.paretoSolutions) || result.paretoSolutions.length === 0) throw { status: 400, message: 'Optimization Service returned no solutions' };
+    try {
+        const optimizationDoc = await OptimizationRunModel.findByIdAndUpdate(result.runId, { status: result.status }, { new: true });
+        if (!optimizationDoc) throw { status: 404, message: 'Optimization run not found' };
+
         const paretoDocs = [];
-        for (const sol of output.paretoSolutions) {
+        for (const sol of result.paretoSolutions) {
             const doc = await ParetoSolutionModel.create({
-                runId: updatedOptimizationDoc._id,
-                allocationVector: sol.allocationMatrix,
+                runId: optimizationDoc._id,
+                allocationVector: sol.allocationVector,
                 objectiveValues: sol.objectiveValues,
             });
-            
+
             if (!doc) throw { status: 400, message: 'Failed to save generated pareto solutions.' };
             paretoDocs.push(doc);
         }
 
-        return { updatedOptimizationDoc, paretoDocs };
+        return { optimizationDoc, paretoDocs };
     } catch (e) {
+        console.error('Error in recieveAndProcessRunCallback:', e); // add this
         throw(e);
     }
 }

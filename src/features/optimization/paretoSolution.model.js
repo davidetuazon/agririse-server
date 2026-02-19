@@ -8,10 +8,6 @@ const allocationUnitSchema = new Schema(
             type: Boolean,
             default: false,
         },
-        _id: {
-            type: mongoose.Schema.Types.ObjectId,
-            required: true,
-        },
         mainLateralId: {
             type: String,
             required: true,
@@ -31,11 +27,9 @@ const allocationUnitSchema = new Schema(
             required: true,
         },
         allocatedWaterM3: {
-            value: {
-                type: Number,
-                required: true,
-            },
-        }
+            type: Number,
+            required: true,
+        },
     }, { _id: false }
 );
 
