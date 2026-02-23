@@ -8,4 +8,10 @@ router.post('/ga', utils.authenticate, optimizationController.createOptimization
 
 router.post('/callback', optimizationController.receiveOptimizationRunCallback);
 
+router.get('/runs/:runId/status', utils.authenticate, optimizationController.pollOptimizationRunStatus);
+
+router.get('/runs/:runId', utils.authenticate, optimizationController.getOptimizationRunResults);
+
+router.post('/runs/:runId/select', utils.authenticate, optimizationController.saveSelectedOptimizationSolution);
+
 module.exports = router;

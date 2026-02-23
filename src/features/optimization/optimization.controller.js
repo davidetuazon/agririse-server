@@ -12,7 +12,7 @@ exports.createOptimizationRun = async (req, res, next) => {
         const optimizationInput = await OptimizationService.prepareRunInput(req.user, params);
         const optimizationDoc = await OptimizationService.initiateRun(req.user, optimizationInput);
        
-        return res.status(200).json({ optimizationRun: optimizationDoc });
+        return res.status(201).json({ optimizationRun: optimizationDoc });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
@@ -24,15 +24,64 @@ exports.receiveOptimizationRunCallback = async (req, res, next) => {
     const issues = validate(result, { 
         runId: { presence: true },
         status: { presence: true },
-        paretoSolutions: { presence: true }
     });
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const { optimizationDoc, paretoDocs } = await OptimizationService.recieveAndProcessRunCallback(result);
+        const status = await OptimizationService.receiveAndProcessRunCallback(result);
 
-        res.status(200).json({ optimizationRun: optimizationDoc, paretoSolutions: paretoDocs });
+        return res.status(200).json(status);
     } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.pollOptimizationRunStatus = async (req, res, next) => {
+    const { runId } = req.params;
+    const issues = validate({ runId },{ runId: { presence: true } });
+    if (issues) return res.status(422).json({ error: issues });
+
+    try {
+        const pollStatus = await OptimizationService.pollRunStatus(req.user._id, runId );
+
+        return res.status(200).json(pollStatus);
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.getOptimizationRunResults = async (req, res, next) => {
+    const { runId } = req.params;
+    const issues = validate({ runId },{ runId: { presence: true } });
+    if (issues) return res.status(422).json({ error: issues });
+
+    try {
+        const results = await OptimizationService.getRunResults(req.user.localityId, runId);
+
+        return res.status(200).json(results);
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.saveSelectedOptimizationSolution = async (req, res, next) => {
+    const { runId } = req.params;
+    const { solutionId } = req.body;
+    const issues = validate({ runId, solutionId }, { 
+        runId: { presence: true },
+        solutionId: { presence: true },
+    });
+    if (issues) return res.status(422).json({ error: issues });
+
+    try {
+        const savedSolution = await OptimizationService.saveSelectedSolution(req.user, runId, solutionId);
+
+        return res.status(201).json(savedSolution);
+    } catch (e) {
+        if (e.code === 11000 ) return res.status(409).json({ error: 'A solution has already been selected for this run' });
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
     }

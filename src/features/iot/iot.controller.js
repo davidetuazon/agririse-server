@@ -39,7 +39,7 @@ exports.insertReadings = async (req, res, next) => {
             errors: result.errors,
         }
 
-        res.status(200).json(data)
+        res.status(201).json(data)
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
@@ -100,7 +100,7 @@ exports.generateExportData = async (req, res, next) => {
     try {
         const exportData = await IoTService.exportData(localityId, category, sensorType, startDate, endDate, format, true);
 
-        res.status(200).json({
+        res.status(201).json({
             fileName: `${exportData.fileName}.${ format === 'csv' ? 'csv' : 'json' }`,
             data: exportData.data,
         });
@@ -173,7 +173,7 @@ exports.saveImportData = async (req, res, next) => {
     try {
         const data = await IoTService.saveImport(importId, req.user, sensorType);
 
-        res.status(200).json(data);
+        res.status(201).json(data);
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });

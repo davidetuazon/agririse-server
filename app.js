@@ -29,9 +29,11 @@ const basepath = '/api';
 const userRoute = require(path.resolve('.') + '/src/features/user/user.routes');
 const iotRoute = require(path.resolve('.') + '/src/features/iot/iot.routes');
 const optimizationRoute = require(path.resolve('.') + '/src/features/optimization/optimization.routes');
+const canalRoute = require(path.resolve('.') + '/src/features/canal/canal.routes');
 
 app.use(basepath + '/v1/user', userRoute);
 app.use(basepath + '/v1/iot', iotRoute);
 app.use(basepath + '/v1/optimization', optimizationRoute);
+app.use(basepath + '/v1/canal', canalRoute);
 
 module.exports = app;

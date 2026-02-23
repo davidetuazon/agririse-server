@@ -32,8 +32,8 @@ const basicAggregation = (canals) => {
             systemLevelLossFactorPercentage,
             avgCanalLossFactorPercentage,
             avgSeepPerKm,
-            mostEfficientCanal,
-            leastEfficientCanal,
+            // mostEfficientCanal,
+            // leastEfficientCanal,
         }
 }
 
