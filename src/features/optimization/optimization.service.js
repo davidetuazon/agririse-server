@@ -5,6 +5,7 @@ const CanalModel = require('../../features/canal/canal.model');
 const IoTService = require('../iot/iot.service');
 const { GAInputProcessing } = require('./optimization.utils');
 const { RUN_DOC_FIELD } = require('../../shared/helpers/constants');
+const { deriveAllocationMetrics } = require('./utils/pareto.utils');
 
 exports.prepareRunInput = async (user, params) => {
     if (!params) throw { status: 400, message: 'Missing administrator level inputs' };
@@ -143,7 +144,13 @@ exports.getRunResults = async (localityId, runId) => {
             .lean();
         if (paretoFront.length === 0) throw { status: 404, message: 'No pareto front solutions found for this run' };
 
-        return { optimizationRun: runDoc, paretoSolutions: paretoFront };
+        const paretoWithAddedMetrics = paretoFront.map(pareto => {
+            return {
+                ...pareto,
+                allocationVector: deriveAllocationMetrics(pareto.allocationVector),
+            }
+        });
+        return { optimizationRun: runDoc, paretoSolutions: paretoWithAddedMetrics };
     }
 
     return { optimizationRun: runDoc, message: 'Run either failed or solutions are still being generated' };
@@ -155,21 +162,33 @@ exports.saveSelectedSolution = async (user, runId, solutionId) => {
     const runDoc = await OptimizationRunModel.findOne({ _id: runId, localityId: user.localityId });
     if (!runDoc) throw { status: 404, message: 'Run data not found' };
 
-    const solutionDoc = await ParetoSolutionModel.findOne({ _id: solutionId, runId });
+    const solutionDoc = await ParetoSolutionModel.findOne({ _id: solutionId, runId }).lean();
     if (!solutionDoc) throw { status: 400, message: 'Solution is not part of this run' };
+
+    const runSnapshot = {
+        triggeredBy: runDoc.triggeredBy,
+        inputSnapshot: runDoc.inputSnapshot,
+        createdAt: runDoc.createdAt,
+    };
+    const solutionSnapshot = {
+        allocationVector: deriveAllocationMetrics(solutionDoc.allocationVector),
+        objectiveValues: solutionDoc.objectiveValues,
+    }
+    const selectedBy = {
+        _id: user._id,
+        name: user.fullName,
+        email: user.email,
+        role: user.role,
+    }
 
     const selected = await SelectedSolutionModel.create({
         localityId: user.localityId,
         runId,
-        solutionId,
-        selectedBy: {
-            _id: user._id,
-            name: user.fullName,
-            email: user.email,
-            role: user.role,
-        }
+        runSnapshot,
+        solutionSnapshot,
+        selectedBy,
     });
     if (!selected) throw { status: 400, message: 'Failed to save selected solution' };
 
-    return selected;
+    return { success: true };
 }

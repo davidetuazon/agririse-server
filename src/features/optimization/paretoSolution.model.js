@@ -26,6 +26,10 @@ const allocationUnitSchema = new Schema(
             type: Number,
             required: true,
         },
+        effectiveWaterM3: {
+            type: Number,
+            required: true,
+        },
         netWaterDemandM3: {
              type: Number,
             required: true,

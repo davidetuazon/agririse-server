@@ -77,9 +77,9 @@ exports.saveSelectedOptimizationSolution = async (req, res, next) => {
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const savedSolution = await OptimizationService.saveSelectedSolution(req.user, runId, solutionId);
+        const status = await OptimizationService.saveSelectedSolution(req.user, runId, solutionId);
 
-        return res.status(201).json(savedSolution);
+        return res.status(201).json(status);
     } catch (e) {
         if (e.code === 11000 ) return res.status(409).json({ error: 'A solution has already been selected for this run' });
         if (e.status) return res.status(e.status).json({ error: e.message });
