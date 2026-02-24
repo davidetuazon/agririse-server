@@ -86,3 +86,17 @@ exports.saveSelectedOptimizationSolution = async (req, res, next) => {
         return res.status(500).json({ error: e.message });
     }
 }
+
+exports.getSelectedSolutionsHistory = async (req, res, next) => {
+    const { year, scenario, cropVariant } = req.query;
+    let queryYear = parseInt(year) || new Date().toISOString().split('-')[0];
+
+    try {
+        const solutions = await OptimizationService.getSolutionsHistory(req.user.localityId, queryYear, scenario, cropVariant);
+
+        return res.status(200).json(solutions);
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}

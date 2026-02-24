@@ -32,6 +32,17 @@ exports.prepareRunInput = async (user, params) => {
             };
         });
 
+        const totalNetWaterDemandM3 = cleanedCanalInputs.reduce((sum, c) => sum + c.netWaterDemandM3, 0);
+        if (totalSeasonalWaterSupplyM3 < totalNetWaterDemandM3 / 2) {
+            const supplyThreshold = totalNetWaterDemandM3 / 2;
+            const deficit = supplyThreshold - totalSeasonalWaterSupplyM3;
+
+            throw {
+                status: 400,
+                message: `Water supply (${totalSeasonalWaterSupplyM3.toLocaleString()} m³) is below the minimum threshold of 50% of total net water demand (${supplyThreshold.toLocaleString()} m³). Shortfall: ${deficit.toLocaleString()} m³. Unable to provide meaningful optimization.`
+            }
+        }
+
         return {
             locality: user.localityId,
             scenario,
@@ -57,8 +68,19 @@ exports.initiateRun = async (user, optimizationInput) => {
             email: user.email,
             role: user.role,
         }
-        const latest = await IoTService.getLatestReadings(user.localityId);
-        const inputSnapshot = { readings: latest.readings, ...optimizationInput }
+        const latest = await IoTService.getLatestReadings(user);
+        const reshapedReadings = Object.fromEntries(
+            Object.entries(latest.readings).map(([key, val]) => [
+                key,
+                {
+                    value: val.value,
+                    unit: val.unit,
+                    recordedAt: val.recordedAt,
+                    sensorType: val.sensorType,
+                }
+            ])
+        );
+        const inputSnapshot = { readings: reshapedReadings, ...optimizationInput }
 
         // create new optimization doc
         const optimizationDoc = await OptimizationRunModel.create({
@@ -191,4 +213,36 @@ exports.saveSelectedSolution = async (user, runId, solutionId) => {
     if (!selected) throw { status: 400, message: 'Failed to save selected solution' };
 
     return { success: true };
+}
+
+exports.getSolutionsHistory = async (localityId, year, scenario, cropVariant) => {
+
+    const parsedYear = parseInt(year);
+    if (isNaN(parsedYear)) throw { status: 400, message: 'Invalid year format' };
+
+    const startOfYear = new Date(`${parsedYear}-01-01T00:00:00.000Z`);
+    const endOfYear = new Date(`${parsedYear}-12-31T23:59:59.999Z`);
+
+    const filter = {
+        localityId,
+        createdAt: {
+            $gte: startOfYear,
+            $lte: endOfYear
+        },
+        ...(scenario && { 'runSnapshot.inputSnapshot.scenario': scenario }),
+        ...(cropVariant && { 'runSnapshot.inputSnapshot.cropVariant': cropVariant })
+    };
+
+    const solutions = await SelectedSolutionModel.find(filter).sort({ createdAt: -1 }).select('-__v -updatedAt').lean();
+    if (solutions.length === 0) {
+        const filterParts = [];
+        if (scenario) filterParts.push(`scenario: ${scenario}`);
+        if (cropVariant) filterParts.push(`cropVariant: ${cropVariant}`);
+        
+        const filterDescription = filterParts.length > 0 ? ` with ${filterParts.join(', ')}` : '';
+
+        throw { status: 404, message: `No solutions found for year ${parsedYear}${filterDescription}` };
+    }
+
+    return solutions;
 }
