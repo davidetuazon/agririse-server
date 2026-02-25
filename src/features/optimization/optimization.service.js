@@ -3,9 +3,10 @@ const OptimizationRunModel = require('./optimizationRun.model');
 const SelectedSolutionModel = require('./selectedSolution.model');
 const CanalModel = require('../../features/canal/canal.model');
 const IoTService = require('../iot/iot.service');
-const { GAInputProcessing } = require('./optimization.utils');
-const { RUN_DOC_FIELD } = require('../../shared/helpers/constants');
+const { GAInputProcessing } = require('./utils/optimization.utils');
+const { RUN_DOC_FIELD, VALID_SCENARIOS, VALID_CROP_VARIANTS } = require('../../shared/helpers/constants');
 const { deriveAllocationMetrics } = require('./utils/pareto.utils');
+const { setCache, getCache, clearCache } = require('../../cache/redis-cache');
 
 exports.prepareRunInput = async (user, params) => {
     if (!params) throw { status: 400, message: 'Missing administrator level inputs' };
@@ -212,6 +213,9 @@ exports.saveSelectedSolution = async (user, runId, solutionId) => {
     });
     if (!selected) throw { status: 400, message: 'Failed to save selected solution' };
 
+    const cacheKey = `${user.localityId}:solution_${new Date(selected.createdAt).getFullYear()}:${runDoc.inputSnapshot.scenario}_${runDoc.inputSnapshot.cropVariant}`;
+    clearCache(cacheKey);
+
     return { success: true };
 }
 
@@ -219,9 +223,15 @@ exports.getSolutionsHistory = async (localityId, year, scenario, cropVariant) =>
 
     const parsedYear = parseInt(year);
     if (isNaN(parsedYear)) throw { status: 400, message: 'Invalid year format' };
+    if (scenario && !VALID_SCENARIOS.includes(scenario)) throw { status: 400, message: `Invalid scenario. Accepted values: [${VALID_SCENARIOS.join(', ')}]` };
+    if (cropVariant && !VALID_CROP_VARIANTS.includes(cropVariant)) throw { status: 400, message: `Invalid crop variant. Accepted values: [${VALID_CROP_VARIANTS.join(', ')}]` };
 
     const startOfYear = new Date(`${parsedYear}-01-01T00:00:00.000Z`);
     const endOfYear = new Date(`${parsedYear}-12-31T23:59:59.999Z`);
+
+    const cacheKey = `${localityId}:solution_${parsedYear}:${scenario}_${cropVariant}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
 
     const filter = {
         localityId,
@@ -233,7 +243,7 @@ exports.getSolutionsHistory = async (localityId, year, scenario, cropVariant) =>
         ...(cropVariant && { 'runSnapshot.inputSnapshot.cropVariant': cropVariant })
     };
 
-    const solutions = await SelectedSolutionModel.find(filter).sort({ createdAt: -1 }).select('-__v -updatedAt').lean();
+    const solutions = await SelectedSolutionModel.find(filter).sort({ createdAt: -1 }).select('-__v -updatedAt -deleted').lean();
     if (solutions.length === 0) {
         const filterParts = [];
         if (scenario) filterParts.push(`scenario: ${scenario}`);
@@ -243,6 +253,7 @@ exports.getSolutionsHistory = async (localityId, year, scenario, cropVariant) =>
 
         throw { status: 404, message: `No solutions found for year ${parsedYear}${filterDescription}` };
     }
+    setCache(cacheKey, solutions);
 
     return solutions;
 }

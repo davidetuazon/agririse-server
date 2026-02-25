@@ -29,6 +29,10 @@ const userSchema = new Schema(
             ref: 'Locality',
             required: true,
         },
+        firstTimer: {
+            type: Boolean,
+            default: true,
+        },
         lastLogin: {
             type: Date,
             default: null,

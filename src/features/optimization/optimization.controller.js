@@ -30,7 +30,7 @@ exports.receiveOptimizationRunCallback = async (req, res, next) => {
     try {
         const status = await OptimizationService.receiveAndProcessRunCallback(result);
 
-        return res.status(200).json(status);
+        return res.status(201).json(status);
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });
@@ -89,8 +89,8 @@ exports.saveSelectedOptimizationSolution = async (req, res, next) => {
 
 exports.getSelectedSolutionsHistory = async (req, res, next) => {
     const { year, scenario, cropVariant } = req.query;
-    let queryYear = parseInt(year) || new Date().toISOString().split('-')[0];
-
+    const queryYear = parseInt(year) || new Date().getFullYear();
+    
     try {
         const solutions = await OptimizationService.getSolutionsHistory(req.user.localityId, queryYear, scenario, cropVariant);
 

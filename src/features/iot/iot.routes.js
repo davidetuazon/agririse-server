@@ -14,10 +14,8 @@ router.get('/history', utils.authenticate, iotController.getHistoricalData);
 
 router.get('/analytics', utils.authenticate, iotController.getAnalyticalData);
 
-// use this route for generating and previewing data to export
 router.post('/data/export', utils.authenticate, iotController.generateExportData);
 
-// use this route for downloading exported data
 router.post('/data/export/save', utils.authenticate, iotController.saveExportData);
 
 router.post('/data/import', utils.authenticate, iotController.processImportData);

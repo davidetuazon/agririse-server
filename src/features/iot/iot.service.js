@@ -80,6 +80,7 @@ exports.insertReadings = async (localityId, readings) => {
                 value: data.value,
                 unit: SENSOR_META[data.sensorType].unit,
                 recordedAt: data.recordedAt || new Date(),
+                source: data.source,
             });
 
             const alerts = await checkCriticalThreshold(reading);
