@@ -5,9 +5,9 @@ exports.triggerForecastManual = async (req, res, next) => {
     const localityId = req.user.localityId;
 
     try {
-        const triggerStatus = await ForecastService.triggerForecast(localityId);
+        await ForecastService.triggerForecast(localityId);
 
-        return res.status(200).json(triggerStatus);
+        return res.status(200).json({ message: 'Forecasting triggered' });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });

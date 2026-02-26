@@ -7,7 +7,7 @@ const utils = require('../../shared/helpers/utils');
 // statis routes
 router.post('/ga', utils.authenticate, optimizationController.createOptimizationRun);
 
-router.post('/callback', optimizationController.receiveOptimizationRunCallback);
+router.post('/callback', utils.authenticateService, optimizationController.receiveOptimizationRunCallback);
 
 router.get('/runs/solutions', utils.authenticate, optimizationController.getSelectedSolutionsHistory);
 

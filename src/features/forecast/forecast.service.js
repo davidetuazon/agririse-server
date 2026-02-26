@@ -26,7 +26,7 @@ exports.triggerForecast = async (localityId) => {
         console.error(err);
     });
 
-    return { message: 'forecast triggered' };
+    return;
 }
 
 exports.receiveAndProcessCallback = async (result) => {

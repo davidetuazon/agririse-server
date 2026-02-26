@@ -44,3 +44,16 @@ exports.changeAccountPassword = async (req, res, next) => {
         return res.status(500).json({ error: e.message });
     }
 }
+
+exports.CompleteAccountOnboarding = async (req, res, next) => {
+    const userId = req.user._id;
+
+    try {
+        await UserService.setUserOnboardingComplete(userId);
+
+        res.status(200).json({ success: true });
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}

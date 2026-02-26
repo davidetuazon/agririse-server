@@ -30,24 +30,27 @@ exports.signIn = async (params) => {
 exports.changePassword = async (userId, updates) => {
     if (!updates) throw { status: 422, message: 'Missing request body' };
 
-    try {
-        const user = await UserModel.findById(userId);
-        if (!user) throw { status: 404, message: 'User not found' };
+    const user = await UserModel.findById(userId);
+    if (!user) throw { status: 404, message: 'User not found' };
 
-        const isMatched = await bcrypt.compare(updates.oldPassword, user.password);
-        if (!isMatched) throw { status: 401, message: 'Old password is incorrect' };
+    const isMatched = await bcrypt.compare(updates.oldPassword, user.password);
+    if (!isMatched) throw { status: 401, message: 'Old password is incorrect' };
 
-        const hashed = await bcrypt.hash(updates.newPassword, 16);
-        const updatedUser = await UserModel.findByIdAndUpdate(user._id, { password: hashed }, { new: true });
-        if (!updatedUser) throw { status: 404, message: 'User not found. Update is unsuccessful' };
+    const hashed = await bcrypt.hash(updates.newPassword, 16);
+    const updatedUser = await UserModel.findByIdAndUpdate(user._id, { password: hashed }, { new: true });
+    if (!updatedUser) throw { status: 404, message: 'User not found. Update is unsuccessful' };
 
-        return {
-            localityId: updatedUser.localityId,
-            email: updatedUser.email,
-            role: updatedUser.role,
-            _id: updatedUser._id,
-        }
-    } catch (e) {
-        throw (e);
+    return {
+        localityId: updatedUser.localityId,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        _id: updatedUser._id,
     }
+}
+
+exports.setUserOnboardingComplete = async (userId) => {
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, { firstTimer: false }, { new: true });
+    if (!updatedUser) throw { status: 404, message: 'User not found' };
+
+    return;
 }

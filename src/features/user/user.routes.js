@@ -8,6 +8,8 @@ router.post('/login', userController.login);
 
 router.patch('/settings/password', utils.authenticate, userController.changeAccountPassword);
 
+router.patch('/onboarding/status', utils.authenticate, userController.CompleteAccountOnboarding);
+
 router.get('/me', utils.authenticate, async (req, res, next) => {
     try {
         res.send(req.user);

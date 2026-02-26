@@ -6,7 +6,7 @@ const utils = require('../../shared/helpers/utils');
 
 router.post('/trigger/manual', utils.authenticate, forecastController.triggerForecastManual);
 
-router.post('/callback', forecastController.receiveForecastCallback);
+router.post('/callback', utils.authenticateService, forecastController.receiveForecastCallback);
 
 router.get('/status', utils.authenticate, forecastController.getForecastStatus);
 
