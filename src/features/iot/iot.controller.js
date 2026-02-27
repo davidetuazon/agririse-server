@@ -48,7 +48,7 @@ exports.insertReadings = async (req, res, next) => {
 
 exports.getLatestData = async (req, res, next) => {
     try {
-        const data = await IoTService.getLatestReadings(req.user);
+        const data = await IoTService.getLatestReadings(req.user.localityId);
 
         res.status(200).json(data);
     } catch (e) {

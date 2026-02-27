@@ -8,13 +8,13 @@ const { RUN_DOC_FIELD, VALID_SCENARIOS, VALID_CROP_VARIANTS } = require('../../s
 const { deriveAllocationMetrics } = require('./utils/pareto.utils');
 const { setCache, getCache, clearCache } = require('../../cache/redis-cache');
 
-exports.prepareRunInput = async (user, params) => {
-    if (!params) throw { status: 400, message: 'Missing administrator level inputs' };
+exports.prepareRunInput = async (localityId, params) => {
+    if (!params) throw { status: 400, message: 'Missing administrator level input' };
     const { totalSeasonalWaterSupplyM3, scenario } = params;
 
     try {
-        const canals = await CanalModel.find({ deleted: false, localityId: user.localityId });
-        if (!Array.isArray(canals) || canals.length === 0) throw { status: 404, message: 'No canals found for this locality' };
+        const canals = await CanalModel.find({ deleted: false, localityId });
+        if (!Array.isArray(canals) || canals.length === 0) throw { status: 404, message: 'Canal list not found' };
 
         let cropVariant;
         const cleanedCanalInputs = canals.map(canal => {
@@ -34,18 +34,18 @@ exports.prepareRunInput = async (user, params) => {
         });
 
         const totalNetWaterDemandM3 = cleanedCanalInputs.reduce((sum, c) => sum + c.netWaterDemandM3, 0);
-        if (totalSeasonalWaterSupplyM3 < totalNetWaterDemandM3 / 2) {
-            const supplyThreshold = totalNetWaterDemandM3 / 2;
+        const supplyThreshold = totalNetWaterDemandM3 * 0.7; // 70% threshold
+        if (totalSeasonalWaterSupplyM3 < supplyThreshold) { 
             const deficit = supplyThreshold - totalSeasonalWaterSupplyM3;
 
             throw {
                 status: 400,
-                message: `Water supply (${totalSeasonalWaterSupplyM3.toLocaleString()} m³) is below the minimum threshold of 50% of total net water demand (${supplyThreshold.toLocaleString()} m³). Shortfall: ${deficit.toLocaleString()} m³. Unable to provide meaningful optimization.`
+                message: `Water supply (${totalSeasonalWaterSupplyM3.toLocaleString()} m³) is below the minimum threshold of 70% of total net water demand (${supplyThreshold.toLocaleString()} m³). Shortfall: ${deficit.toLocaleString()} m³. Unable to provide meaningful optimization.`
             }
         }
 
         return {
-            locality: user.localityId,
+            locality: localityId,
             scenario,
             cropVariant,
             totalSeasonalWaterSupplyM3,
@@ -69,7 +69,7 @@ exports.initiateRun = async (user, optimizationInput) => {
             email: user.email,
             role: user.role,
         }
-        const latest = await IoTService.getLatestReadings(user);
+        const latest = await IoTService.getLatestReadings(user.localityId);
         const reshapedReadings = Object.fromEntries(
             Object.entries(latest.readings).map(([key, val]) => [
                 key,
@@ -91,7 +91,7 @@ exports.initiateRun = async (user, optimizationInput) => {
             // set initial status to pending
             status: 'pending'
         });
-        if (!optimizationDoc) throw { status: 400, message: 'Failed to generate optimization run.' };
+        if (!optimizationDoc) throw { status: 400, message: 'Failed to initiate optimization run' };
 
         // Python Service Contract
         const cleanedGAInputs = GAInputProcessing(latest.readings, optimizationInput);
@@ -113,7 +113,7 @@ exports.initiateRun = async (user, optimizationInput) => {
 }
 
 exports.receiveAndProcessRunCallback = async (result) => {
-    if (!result) throw { status: 400, message: 'Missing response from optimization service' };
+    if (!result) throw { status: 400, message: 'Missing payload from optimization service' };
     
     if (result.status !== 'failed') {
         if (!Array.isArray(result.paretoSolutions) || result.paretoSolutions.length === 0) throw { status: 400, message: 'Invalid or missing pareto solutions in payload' };
@@ -132,7 +132,7 @@ exports.receiveAndProcessRunCallback = async (result) => {
         }));
         await ParetoSolutionModel.insertMany(docs);
 
-        return { success: true };
+        return;
     } catch (e) {
         console.error('Error in recieveAndProcessRunCallback:', e);
         throw(e);
@@ -156,9 +156,9 @@ exports.getRunResults = async (localityId, runId) => {
     if (!runId) throw { status: 400, message: 'Missing query parameters' };
 
     const runDoc = await OptimizationRunModel.findById(runId).select(RUN_DOC_FIELD);
-    if (!runDoc) throw { status: 404, message: 'Run data not found' };
+    if (!runDoc) throw { status: 404, message: 'Optimization run data not found' };
 
-    if (!runDoc.localityId.equals(localityId)) throw { status: 403, message: 'Unauthorized' };
+    if (!runDoc.localityId.equals(localityId)) throw { status: 403, message: 'Forbidden' };
 
     if (runDoc.status === 'completed') {
         const paretoFront = await ParetoSolutionModel

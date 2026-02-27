@@ -121,7 +121,7 @@ exports.insertReading = async (localityId, data) => {
     return result.results[0];
 }
 
-exports.getLatestReadings = async (user) => {
+exports.getLatestReadings = async (localityId) => {
     const sensorTypes = [
         'rainfall',
         'humidity',
@@ -130,7 +130,7 @@ exports.getLatestReadings = async (user) => {
     ];
 
     const queries = sensorTypes.map(type =>
-        IoTModel.find({ localityId: user.localityId, sensorType: type })
+        IoTModel.find({ localityId, sensorType: type })
         .sort({ recordedAt: -1 })
         .limit(2) // get latest 2 readings
         .populate({ path: 'localityId', select: 'city province region' })

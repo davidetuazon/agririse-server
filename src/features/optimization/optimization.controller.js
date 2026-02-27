@@ -9,7 +9,7 @@ exports.createOptimizationRun = async (req, res, next) => {
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const optimizationInput = await OptimizationService.prepareRunInput(req.user, params);
+        const optimizationInput = await OptimizationService.prepareRunInput(req.user.localityId, params);
         const optimizationDoc = await OptimizationService.initiateRun(req.user, optimizationInput);
        
         return res.status(201).json({ optimizationRun: optimizationDoc });
@@ -28,9 +28,9 @@ exports.receiveOptimizationRunCallback = async (req, res, next) => {
     if (issues) return res.status(422).json({ error: issues });
 
     try {
-        const status = await OptimizationService.receiveAndProcessRunCallback(result);
+        await OptimizationService.receiveAndProcessRunCallback(result);
 
-        return res.status(201).json(status);
+        return res.status(201).json({ success: true });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });

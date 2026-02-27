@@ -48,7 +48,7 @@ describe('IoT Service - getLatestReadings', () => {
             return { sort: mockSort };
         });
         
-        const result = await IoTService.getLatestReadings(mockUser);
+        const result = await IoTService.getLatestReadings(mockUser.localityId);
 
         expect(result.locality).toEqual({
             _id: '456',
@@ -96,7 +96,7 @@ describe('IoT Service - getLatestReadings', () => {
             return { sort: mockSort };
         });
         
-        const result = await IoTService.getLatestReadings(mockUser);
+        const result = await IoTService.getLatestReadings(mockUser.localityId);
 
         expect(result.locality).toEqual({
             _id: '456',
@@ -152,7 +152,7 @@ describe('IoT Service - getLatestReadings', () => {
             return { sort: mockSort };
         });
         
-        const result = await IoTService.getLatestReadings(mockUser);
+        const result = await IoTService.getLatestReadings(mockUser.localityId);
 
         expect(result.locality).toEqual({
             _id: '456',
@@ -186,7 +186,7 @@ describe('IoT Service - getLatestReadings', () => {
             return { sort: mockSort };
         });
 
-        const result = await IoTService.getLatestReadings(mockUser);
+        const result = await IoTService.getLatestReadings(mockUser.localityId);
 
         expect(result.locality).toBeNull();
         expect(result.readings).toEqual({});
