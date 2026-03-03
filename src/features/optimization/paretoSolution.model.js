@@ -4,14 +4,6 @@ const Schema = mongoose.Schema;
 
 const allocationUnitSchema = new Schema(
     {
-        deleted: {
-            type: Boolean,
-            default: false,
-        },
-        _id: {
-            type: mongoose.Types.ObjectId,
-            required: true,
-        },
         mainLateralId: {
             type: String,
             required: true,
@@ -31,10 +23,16 @@ const allocationUnitSchema = new Schema(
             required: true,
         },
         allocatedWaterM3: {
-            value: {
-                type: Number,
-                required: true,
-            },
+            type: Number,
+            required: true,
+        },
+        effectiveWaterM3: {
+            type: Number,
+            required: true,
+        },
+        netWaterDemandM3: {
+             type: Number,
+            required: true,
         }
     }, { _id: false }
 );
@@ -59,8 +57,12 @@ const objectiveValuesSchema = new Schema(
 
 const paretoSolutionSchema = new Schema(
     {
+        deleted: {
+            type: Boolean,
+            default: false,
+        },
         runId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'OptimizationRun',
             required: true,
         },

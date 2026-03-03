@@ -13,14 +13,45 @@ exports.login = async (req, res, next) => {
         const user = await UserService.signIn(params);
 
         const payload = {
+            localityId: user.localityId,
             email: user.email,
             _id: user._id,
-            localityId: user.localityId,
+            
         }
 
         const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '7d' });
 
         res.send({ accessToken });
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.changeAccountPassword = async (req, res, next) => {
+    const params = {...req.body};
+    const issues = validate(params, constraints.passwordChange);
+    if (issues) return res.status(422).json({ error: issues });
+
+    if (params.oldPassword === params.newPassword) return res.status(409).json({ error: 'New password must be different from current password' });
+
+    try {
+        const updatedUser = await UserService.changePassword(req.user._id, params);
+
+        res.status(201).json({ success: true, message: 'Password updated successfully', user: updatedUser });
+    } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+exports.CompleteAccountOnboarding = async (req, res, next) => {
+    const userId = req.user._id;
+
+    try {
+        await UserService.setUserOnboardingComplete(userId);
+
+        res.status(200).json({ success: true });
     } catch (e) {
         if (e.status) return res.status(e.status).json({ error: e.message });
         return res.status(500).json({ error: e.message });

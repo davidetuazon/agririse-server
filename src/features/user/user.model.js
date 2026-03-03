@@ -25,9 +25,13 @@ const userSchema = new Schema(
             required: true,
         },
         localityId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Locality',
             required: true,
+        },
+        firstTimer: {
+            type: Boolean,
+            default: true,
         },
         lastLogin: {
             type: Date,

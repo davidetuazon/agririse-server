@@ -8,8 +8,9 @@ const canalSchema = new Schema(
             default: false,
         },
         localityId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Locality',
+            required: true,
         },
         mainLateralId: {
             type: String,
@@ -68,5 +69,9 @@ const canalSchema = new Schema(
         }],
     }, { timestamps: true }
 )
+canalSchema.index({
+    deleted: 1,
+    localityId: 1,
+})
 
 module.exports = mongoose.model('Canal', canalSchema);

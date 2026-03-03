@@ -8,7 +8,7 @@ const sensorReadingSchema = new Schema(
             default: false,
         },
         localityId: {
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'Locality',
             required: true,
         },
@@ -31,7 +31,7 @@ const sensorReadingSchema = new Schema(
         },
         source: {
             type: String,
-            enum: ['mock', 'iot'],
+            enum: ['mock', 'iot', 'import', 'forecast'],
             default: 'mock',
         },
     }, { timestamps: true }

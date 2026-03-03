@@ -20,6 +20,17 @@ const authenticate = async (req, res, next) => {
     }
 }
 
+const authenticateService = (req, res, next) => {
+    console.log('Python Microservice Authentication Triggered');
+    const authKey = req.headers['x-api-key'];
+    if (!authKey) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (authKey !== process.env.API_SHARED_KEY) return res.status(403).json({ error: 'Forbidden' });
+
+    next();
+}
+
 module.exports = {
     authenticate,
+    authenticateService,
 }
