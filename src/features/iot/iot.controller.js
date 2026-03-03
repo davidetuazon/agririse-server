@@ -2,20 +2,6 @@ const IoTService = require('./iot.service');
 const validate = require('validate.js');
 const constraints = require('./iot.validations');
 
-// for mocking real iot sensors
-exports.generateMockData = async (req, res, next) => {
-    const localityId = req.user.localityId;
-
-    try {
-        const data = await IoTService.generateMockReadings(localityId);
-
-        res.status(201).json({ message: 'Mock data generated', data });
-    } catch (e) {
-        if (e.status) return res.status(e.status).json({ error: e.message });
-        return res.status(500).json({ error: e.message });
-    }
-}
-
 exports.insertReadings = async (req, res, next) => {
     const localityId = req.user.localityId; // use user for now but attach locality id on request
     const readings = Array.isArray(req.body) ? req.body : [req.body];

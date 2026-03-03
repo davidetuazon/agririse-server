@@ -9,38 +9,6 @@ const { validateData, checkCriticalThreshold, checkSuddenChange } = require('./u
 const { setCache, getCache, clearCache, clearAllCache } = require('../../cache/redis-cache');
 const crypto = require('crypto');
 
-// for mocking real iot sensors
-exports.generateMockReadings = async (localityId) => {
-    const readings = [
-        {
-            localityId: localityId,
-            sensorType: 'rainfall',
-            value: mockSensorReadings.mockRainfall(),
-            unit: 'mm',
-        },
-        {
-            localityId: localityId,
-            sensorType: 'humidity',
-            value: mockSensorReadings.mockHumidity(),
-            unit: '%',
-        },
-        {
-            localityId: localityId,
-            sensorType: 'temperature',
-            value: mockSensorReadings.mockTemperature(),
-            unit: '°C',
-        },
-        {
-            localityId: localityId,
-            sensorType: 'damWaterLevel',
-            value: mockSensorReadings.mockDamWaterLevel(),
-            unit: '%',
-        },
-    ];
-
-    return IoTModel.insertMany(readings);
-}
-
 // ---- Actual Services ---- //
 
 exports.insertReadings = async (localityId, readings) => {

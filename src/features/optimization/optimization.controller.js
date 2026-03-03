@@ -92,7 +92,7 @@ exports.getSelectedSolutionsHistory = async (req, res, next) => {
     const queryYear = parseInt(year) || new Date().getFullYear();
     
     try {
-        const solutions = await OptimizationService.getSolutionsHistory(req.user.localityId, queryYear, scenario, cropVariant);
+        const solutions = await OptimizationService.getSolutionsHistory(req.user, queryYear, scenario, cropVariant);
 
         return res.status(200).json(solutions);
     } catch (e) {

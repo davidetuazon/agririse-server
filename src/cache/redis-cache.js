@@ -27,9 +27,16 @@ const clearAllCache = () => {
     cache.clear();
 }
 
+const clearCacheByPrefix = (prefix) => {
+    for (const key of cache.keys()) {
+        if (key.startsWith(prefix)) cache.delete(key);
+    }
+}
+
 module.exports = {
     setCache,
     getCache,
     clearCache,
     clearAllCache,
+    clearCacheByPrefix,
 }
