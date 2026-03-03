@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const ParetoSolutionModel = require('./paretoSolution.model');
 const OptimizationRunModel = require('./optimizationRun.model');
 const SelectedSolutionModel = require('./selectedSolution.model');
@@ -112,28 +113,43 @@ exports.initiateRun = async (user, optimizationInput) => {
     }
 }
 
+// comment/remove any mongoose session lines when testing on local
 exports.receiveAndProcessRunCallback = async (result) => {
-    if (!result) throw { status: 400, message: 'Missing payload from optimization service' };
+    if (!result || !result.runId) throw { status: 400, message: 'Missing payload from optimization service' };
     
     if (result.status !== 'failed') {
         if (!Array.isArray(result.paretoSolutions) || result.paretoSolutions.length === 0) throw { status: 400, message: 'Invalid or missing pareto solutions in payload' };
     }
 
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-        const optimizationDoc = await OptimizationRunModel.findByIdAndUpdate(result.runId, { status: result.status }, { new: true });
+        const optimizationDoc = await OptimizationRunModel.findByIdAndUpdate(result.runId, { status: result.status }, { new: true, session });
         if (!optimizationDoc) throw { status: 404, message: 'Optimization run not found' };
         
-        if (result.status === 'failed' ) return { optimizationDoc, message: 'GA optimization failed' };
+        if (result.status === 'failed' ) {
+            await session.commitTransaction();
+            session.endSession();
+            return { optimizationDoc, message: 'GA optimization failed' };
+        }
+
+        await ParetoSolutionModel.deleteMany({ runId: optimizationDoc._id }, { session });
 
         const docs = result.paretoSolutions.map(sol => ({
             runId: optimizationDoc._id,
             allocationVector: sol.allocationVector,
             objectiveValues: sol.objectiveValues,
         }));
-        await ParetoSolutionModel.insertMany(docs);
+        await ParetoSolutionModel.insertMany(docs, { session });
+
+        await session.commitTransaction();
+        session.endSession();
 
         return;
     } catch (e) {
+        await session.abortTransaction();
+        session.endSession();
         console.error('Error in recieveAndProcessRunCallback:', e);
         throw(e);
     }
