@@ -1,6 +1,5 @@
 const IoTModel = require('./iot.model');
 require('../locality/locality.model');
-const mockSensorReadings = require('../../shared/services/mockSensorReadings');
 const { SENSOR_META, DATA_TYPE } = require('./utils/constants');
 const { generateCSV } = require('./utils/dataExport.utils');
 const { parsedDataFile } = require('./utils/dataImport.utils');
